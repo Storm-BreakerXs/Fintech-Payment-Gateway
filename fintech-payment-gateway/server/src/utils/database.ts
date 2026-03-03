@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
+  emailVerified: { type: Boolean, default: false },
+  emailVerificationOtpHash: { type: String, default: null },
+  emailVerificationOtpExpiresAt: { type: Date, default: null },
+  emailVerificationAttempts: { type: Number, default: 0 },
   kycStatus: { 
     type: String, 
     enum: ['pending', 'verified', 'rejected'], 

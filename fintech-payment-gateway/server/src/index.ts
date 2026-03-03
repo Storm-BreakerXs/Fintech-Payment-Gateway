@@ -24,11 +24,16 @@ const allowedOrigins = config.clientUrl
   .map((origin) => origin.trim())
   .filter(Boolean)
 
+function isDynamicAllowedOrigin(origin: string): boolean {
+  return /^https:\/\/[a-z0-9-]+\.netlify\.app$/i.test(origin)
+    || /^http:\/\/localhost:\d+$/i.test(origin)
+}
+
 // Security middleware
 app.use(helmet())
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || isDynamicAllowedOrigin(origin)) {
       return callback(null, true)
     }
     logger.warn(`Blocked CORS origin: ${origin}`)

@@ -44,6 +44,30 @@ function getPort(value: string | undefined): number {
   return parsed
 }
 
+function getOptionalPort(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 65535) {
+    throw new Error(`Invalid port "${value}". Expected an integer between 1 and 65535.`)
+  }
+  return parsed
+}
+
+function getPositiveInt(value: string | undefined, fallback: number, name: string): number {
+  if (!value) {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${name} "${value}". Expected a positive integer.`)
+  }
+  return parsed
+}
+
 const nodeEnv = getNodeEnv(process.env.NODE_ENV)
 const isProduction = nodeEnv === 'production'
 
@@ -57,6 +81,13 @@ if (encryptionKey.length < 32) {
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() || ''
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || ''
 const redisUrl = process.env.REDIS_URL?.trim() || ''
+const smtpHost = process.env.SMTP_HOST?.trim() || ''
+const smtpPort = getOptionalPort(process.env.SMTP_PORT?.trim(), 587)
+const smtpSecure = (process.env.SMTP_SECURE?.trim() || 'false').toLowerCase() === 'true'
+const smtpUser = process.env.SMTP_USER?.trim() || ''
+const smtpPass = process.env.SMTP_PASS?.trim() || ''
+const smtpFrom = process.env.SMTP_FROM?.trim() || ''
+const emailOtpTtlMinutes = getPositiveInt(process.env.EMAIL_OTP_TTL_MINUTES?.trim(), 10, 'EMAIL_OTP_TTL_MINUTES')
 
 if (isProduction && (!stripeSecretKey || !stripeWebhookSecret)) {
   throw new Error('STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are required in production.')
@@ -77,4 +108,11 @@ export const config = {
   encryptionKey,
   stripeSecretKey,
   stripeWebhookSecret,
+  smtpHost,
+  smtpPort,
+  smtpSecure,
+  smtpUser,
+  smtpPass,
+  smtpFrom,
+  emailOtpTtlMinutes,
 }
