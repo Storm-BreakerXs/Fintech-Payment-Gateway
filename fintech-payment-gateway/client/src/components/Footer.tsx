@@ -1,31 +1,6 @@
-import { Shield, Github, Twitter, Linkedin, Mail } from "lucide-react";
-
-const footerLinks = {
-  product: [
-    { label: "Features", href: "#" },
-    { label: "Pricing", href: "#" },
-    { label: "Security", href: "#" },
-    { label: "Enterprise", href: "#" },
-  ],
-  company: [
-    { label: "About", href: "#" },
-    { label: "Blog", href: "#" },
-    { label: "Careers", href: "#" },
-    { label: "Press", href: "#" },
-  ],
-  resources: [
-    { label: "Documentation", href: "#" },
-    { label: "API Reference", href: "#" },
-    { label: "SDKs", href: "#" },
-    { label: "Status", href: "#" },
-  ],
-  legal: [
-    { label: "Privacy", href: "#" },
-    { label: "Terms", href: "#" },
-    { label: "Cookie Policy", href: "#" },
-    { label: "Licenses", href: "#" },
-  ],
-};
+import { Link } from 'react-router-dom'
+import { Shield, Github, Twitter, Linkedin, Mail } from 'lucide-react'
+import { footerLinkGroups } from '../content/sitePages'
 
 export default function Footer() {
   return (
@@ -46,25 +21,31 @@ export default function Footer() {
             </p>
             <div className="flex space-x-4">
               <a
-                href="#"
+                href="https://x.com"
+                target="_blank"
+                rel="noreferrer"
                 className="text-slate-400 hover:text-white transition-colors"
               >
                 <Twitter className="w-5 h-5" />
               </a>
               <a
-                href="#"
+                href="https://github.com/Storm-BreakerXs/Fintech-Payment-Gateway"
+                target="_blank"
+                rel="noreferrer"
                 className="text-slate-400 hover:text-white transition-colors"
               >
                 <Github className="w-5 h-5" />
               </a>
               <a
-                href="#"
+                href="https://www.linkedin.com"
+                target="_blank"
+                rel="noreferrer"
                 className="text-slate-400 hover:text-white transition-colors"
               >
                 <Linkedin className="w-5 h-5" />
               </a>
               <a
-                href="#"
+                href="mailto:support@finpay.gateway"
                 className="text-slate-400 hover:text-white transition-colors"
               >
                 <Mail className="w-5 h-5" />
@@ -76,14 +57,14 @@ export default function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Product</h3>
             <ul className="space-y-2">
-              {footerLinks.product.map((link) => (
+              {footerLinkGroups.product.map((link) => (
                 <li key={link.label}>
-                  <a
-                    href={link.href}
+                  <Link
+                    to={link.href}
                     className="text-slate-400 hover:text-white text-sm transition-colors"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -92,14 +73,14 @@ export default function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Company</h3>
             <ul className="space-y-2">
-              {footerLinks.company.map((link) => (
+              {footerLinkGroups.company.map((link) => (
                 <li key={link.label}>
-                  <a
-                    href={link.href}
+                  <Link
+                    to={link.href}
                     className="text-slate-400 hover:text-white text-sm transition-colors"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -108,14 +89,14 @@ export default function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Resources</h3>
             <ul className="space-y-2">
-              {footerLinks.resources.map((link) => (
+              {footerLinkGroups.resources.map((link) => (
                 <li key={link.label}>
-                  <a
-                    href={link.href}
+                  <Link
+                    to={link.href}
                     className="text-slate-400 hover:text-white text-sm transition-colors"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -124,14 +105,14 @@ export default function Footer() {
           <div>
             <h3 className="text-white font-semibold mb-4">Legal</h3>
             <ul className="space-y-2">
-              {footerLinks.legal.map((link) => (
+              {footerLinkGroups.legal.map((link) => (
                 <li key={link.label}>
-                  <a
-                    href={link.href}
+                  <Link
+                    to={link.href}
                     className="text-slate-400 hover:text-white text-sm transition-colors"
                   >
                     {link.label}
-                  </a>
+                  </Link>
                 </li>
               ))}
             </ul>

@@ -229,7 +229,7 @@ export default function Home() {
               Start accepting payments in minutes.
             </p>
             <Link
-              to="/payment"
+              to="/auth?mode=register"
               className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
             >
               <span>Create Free Account</span>
