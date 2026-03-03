@@ -1,0 +1,19 @@
+{
+  "name": "fintech-payment-gateway-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for fintech payment gateway",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:local": "hardhat run deploy.js --network localhost",
+    "deploy:goerli": "hardhat run deploy.js --network goerli",
+    "deploy:mainnet": "hardhat run deploy.js --network mainnet",
+    "verify": "hardhat verify"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.1",
+    "dotenv": "^16.3.1",
+    "hardhat": "^2.19.4"
+  }
+}

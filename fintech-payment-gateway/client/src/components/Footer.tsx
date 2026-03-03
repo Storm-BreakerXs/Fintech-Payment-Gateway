@@ -1,0 +1,156 @@
+import { Shield, Github, Twitter, Linkedin, Mail } from "lucide-react";
+
+const footerLinks = {
+  product: [
+    { label: "Features", href: "#" },
+    { label: "Pricing", href: "#" },
+    { label: "Security", href: "#" },
+    { label: "Enterprise", href: "#" },
+  ],
+  company: [
+    { label: "About", href: "#" },
+    { label: "Blog", href: "#" },
+    { label: "Careers", href: "#" },
+    { label: "Press", href: "#" },
+  ],
+  resources: [
+    { label: "Documentation", href: "#" },
+    { label: "API Reference", href: "#" },
+    { label: "SDKs", href: "#" },
+    { label: "Status", href: "#" },
+  ],
+  legal: [
+    { label: "Privacy", href: "#" },
+    { label: "Terms", href: "#" },
+    { label: "Cookie Policy", href: "#" },
+    { label: "Licenses", href: "#" },
+  ],
+};
+
+export default function Footer() {
+  return (
+    <footer className="bg-slate-900/50 border-t border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-8">
+          {/* Brand */}
+          <div className="col-span-2">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center">
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-xl font-bold gradient-text">FinPay</span>
+            </div>
+            <p className="text-slate-400 text-sm mb-6 max-w-xs">
+              Next-generation payment gateway with crypto integration. Secure,
+              fast, and compliant.
+            </p>
+            <div className="flex space-x-4">
+              <a
+                href="#"
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <Twitter className="w-5 h-5" />
+              </a>
+              <a
+                href="#"
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <Github className="w-5 h-5" />
+              </a>
+              <a
+                href="#"
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <Linkedin className="w-5 h-5" />
+              </a>
+              <a
+                href="#"
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <Mail className="w-5 h-5" />
+              </a>
+            </div>
+          </div>
+
+          {/* Links */}
+          <div>
+            <h3 className="text-white font-semibold mb-4">Product</h3>
+            <ul className="space-y-2">
+              {footerLinks.product.map((link) => (
+                <li key={link.label}>
+                  <a
+                    href={link.href}
+                    className="text-slate-400 hover:text-white text-sm transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-white font-semibold mb-4">Company</h3>
+            <ul className="space-y-2">
+              {footerLinks.company.map((link) => (
+                <li key={link.label}>
+                  <a
+                    href={link.href}
+                    className="text-slate-400 hover:text-white text-sm transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-white font-semibold mb-4">Resources</h3>
+            <ul className="space-y-2">
+              {footerLinks.resources.map((link) => (
+                <li key={link.label}>
+                  <a
+                    href={link.href}
+                    className="text-slate-400 hover:text-white text-sm transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-white font-semibold mb-4">Legal</h3>
+            <ul className="space-y-2">
+              {footerLinks.legal.map((link) => (
+                <li key={link.label}>
+                  <a
+                    href={link.href}
+                    className="text-slate-400 hover:text-white text-sm transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom */}
+        <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between">
+          <p className="text-slate-500 text-sm">
+            © 2026 FinPay Gateway. All rights reserved.
+          </p>
+          <div className="flex items-center space-x-6 mt-4 md:mt-0">
+            <span className="flex items-center space-x-2 text-slate-500 text-sm">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>All systems operational</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

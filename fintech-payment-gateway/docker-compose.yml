@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - fintech-network
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb://mongo:27017/fintech_gateway
+      - JWT_SECRET=${JWT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - INFURA_PROJECT_ID=${INFURA_PROJECT_ID}
+      - ETHERSCAN_API_KEY=${ETHERSCAN_API_KEY}
+      - COINMARKETCAP_API_KEY=${COINMARKETCAP_API_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - KYC_API_KEY=${KYC_API_KEY}
+      - AML_API_KEY=${AML_API_KEY}
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - fintech-network
+
+  mongo:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - fintech-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - fintech-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./deployment/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployment/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - client
+      - server
+    networks:
+      - fintech-network
+
+volumes:
+  mongo-data:
+
+networks:
+  fintech-network:
+    driver: bridge
