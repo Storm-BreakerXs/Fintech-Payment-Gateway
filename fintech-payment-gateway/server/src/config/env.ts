@@ -56,9 +56,14 @@ if (encryptionKey.length < 32) {
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() || ''
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || ''
+const redisUrl = process.env.REDIS_URL?.trim() || ''
 
 if (isProduction && (!stripeSecretKey || !stripeWebhookSecret)) {
   throw new Error('STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are required in production.')
+}
+
+if (isProduction && !redisUrl) {
+  throw new Error('REDIS_URL is required in production.')
 }
 
 export const config = {
@@ -67,7 +72,7 @@ export const config = {
   port: getPort(process.env.PORT),
   clientUrl: (process.env.CLIENT_URL || 'http://localhost:5173').trim(),
   mongodbUri: requireEnv('MONGODB_URI'),
-  redisUrl: requireEnv('REDIS_URL'),
+  redisUrl,
   jwtSecret,
   encryptionKey,
   stripeSecretKey,

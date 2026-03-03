@@ -1,4 +1,4 @@
-import express, { Response } from 'express'
+import express, { Request, Response } from 'express'
 import Stripe from 'stripe'
 import { body, validationResult } from 'express-validator'
 import { config } from '../config/env'
@@ -11,6 +11,59 @@ const router = express.Router()
 const stripe = config.stripeSecretKey
   ? new Stripe(config.stripeSecretKey, { apiVersion: '2023-10-16' })
   : null
+
+// Create Stripe Checkout session (public demo flow)
+router.post('/card/checkout', [
+  body('amount').isFloat({ min: 0.01 }),
+  body('currency').isIn(['USD', 'EUR', 'GBP']),
+  body('merchantName').optional().trim()
+], asyncHandler(async (req: Request, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  }
+
+  const { amount, currency, merchantName } = req.body
+
+  if (!stripe) {
+    return res.status(503).json({
+      error: 'Card payments are not configured',
+      message: 'Missing STRIPE_SECRET_KEY on the server'
+    })
+  }
+
+  const primaryClientUrl = config.clientUrl.split(',')[0]?.trim() || 'http://localhost:5173'
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [
+      {
+        quantity: 1,
+        price_data: {
+          currency: currency.toLowerCase(),
+          unit_amount: Math.round(amount * 100),
+          product_data: {
+            name: merchantName || 'FinPay Payment'
+          }
+        }
+      }
+    ],
+    success_url: `${primaryClientUrl}/payment?status=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${primaryClientUrl}/payment?status=cancel`,
+    metadata: {
+      amount: String(amount),
+      currency,
+      merchantName: merchantName || 'FinPay Payment'
+    }
+  })
+
+  res.json({
+    success: true,
+    checkoutUrl: session.url,
+    sessionId: session.id
+  })
+}))
 
 // Process card payment
 router.post('/card', authenticateToken, requireKyc, [

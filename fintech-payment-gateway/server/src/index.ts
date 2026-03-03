@@ -19,11 +19,21 @@ import webhookRoutes from './routes/webhooks'
 const app = express()
 const server = createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws' })
+const allowedOrigins = config.clientUrl
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
 
 // Security middleware
 app.use(helmet())
 app.use(cors({
-  origin: config.clientUrl,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    logger.warn(`Blocked CORS origin: ${origin}`)
+    return callback(null, false)
+  },
   credentials: true
 }))
 
@@ -49,6 +59,15 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     version: '1.0.0'
+  })
+})
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    service: 'fintech-payment-gateway',
+    status: 'ok',
+    docs: '/health',
   })
 })
 

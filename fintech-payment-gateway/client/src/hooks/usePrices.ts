@@ -1,7 +1,10 @@
 import { useQuery } from 'react-query'
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  || (import.meta.env.DEV
+    ? 'http://localhost:3001/api'
+    : 'https://fintech-payment-gateway.onrender.com/api')
 
 interface CryptoPrice {
   symbol: string

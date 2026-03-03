@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   CreditCard, 
@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Copy,
 } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import Card3D from '../components/Card3D'
 import { useWeb3Store } from '../hooks/useWeb3'
@@ -17,12 +18,18 @@ import toast from 'react-hot-toast'
 
 type PaymentMethod = 'card' | 'crypto'
 type PaymentStep = 'amount' | 'details' | 'confirm' | 'processing' | 'success'
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  || (import.meta.env.DEV
+    ? 'http://localhost:3001/api'
+    : 'https://fintech-payment-gateway.onrender.com/api')
 
 export default function Payment() {
+  const [searchParams] = useSearchParams()
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
   const [step, setStep] = useState<PaymentStep>('amount')
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('USD')
+  const [transactionId, setTransactionId] = useState('')
   const [cardData, setCardData] = useState({
     number: '',
     holder: '',
@@ -34,7 +41,33 @@ export default function Payment() {
 
   const { isConnected, connect } = useWeb3Store()
 
-  const currencies = ['USD', 'EUR', 'GBP', 'ETH', 'BTC', 'USDC', 'USDT']
+  const fiatCurrencies = ['USD', 'EUR', 'GBP']
+  const cryptoCurrencies = ['ETH', 'BTC', 'USDC', 'USDT']
+  const currencies = paymentMethod === 'card' ? fiatCurrencies : cryptoCurrencies
+
+  useEffect(() => {
+    const status = searchParams.get('status')
+    const sessionId = searchParams.get('session_id')
+
+    if (status === 'success') {
+      setTransactionId(sessionId || '')
+      setStep('success')
+    }
+
+    if (status === 'cancel') {
+      setStep('confirm')
+      toast.error('Payment was canceled.')
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (paymentMethod === 'card' && !fiatCurrencies.includes(currency)) {
+      setCurrency('USD')
+    }
+    if (paymentMethod === 'crypto' && !cryptoCurrencies.includes(currency)) {
+      setCurrency('ETH')
+    }
+  }, [paymentMethod, currency])
 
   const handleAmountSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,8 +83,39 @@ export default function Payment() {
 
   const handleConfirm = async () => {
     setStep('processing')
-    // Simulate processing
+
+    if (paymentMethod === 'card') {
+      try {
+        const response = await fetch(`${API_BASE_URL}/payments/card/checkout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: parseFloat(amount),
+            currency,
+            merchantName: 'FinPay Gateway',
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok || !data.checkoutUrl) {
+          throw new Error(data?.message || data?.error || 'Unable to start card payment.')
+        }
+
+        window.location.href = data.checkoutUrl
+        return
+      } catch (error: any) {
+        toast.error(error.message || 'Card payment initialization failed.')
+        setStep('confirm')
+        return
+      }
+    }
+
+    // Keep crypto as an in-app demo confirmation.
     await new Promise(resolve => setTimeout(resolve, 3000))
+    setTransactionId(`0x${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`)
     setStep('success')
   }
 
@@ -463,12 +527,14 @@ export default function Payment() {
                 <p className="text-slate-400 mb-6">Your transaction has been completed successfully.</p>
                 <div className="bg-slate-800/50 rounded-xl p-4 mb-6">
                   <div className="text-sm text-slate-400 mb-1">Transaction ID</div>
-                  <div className="font-mono text-emerald-400">0x7f8a9b2c3d4e5f6a7b8c9d0e1f2a3b4c</div>
+                  <div className="font-mono text-emerald-400">{transactionId || 'pending'}</div>
                 </div>
                 <button
                   onClick={() => {
                     setStep('amount')
                     setAmount('')
+                    setCurrency('USD')
+                    setTransactionId('')
                     setCardData({ number: '', holder: '', expiry: '', cvv: '' })
                   }}
                   className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
