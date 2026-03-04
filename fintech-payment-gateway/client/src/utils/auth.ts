@@ -7,6 +7,13 @@ export interface AuthUser {
   preferredCurrency?: 'USD' | 'EUR' | 'GBP'
   timezone?: string
   language?: string
+  notificationSettings?: {
+    paymentConfirmations: boolean
+    failedTransactions: boolean
+    weeklyReports: boolean
+    priceAlerts: boolean
+    securityAlerts: boolean
+  }
   emailVerified?: boolean
   kycStatus?: 'pending' | 'verified' | 'rejected'
   walletAddress?: string

@@ -64,6 +64,13 @@ export default function Settings() {
         setPreferredCurrency(data.user.preferredCurrency || 'USD')
         setTimezone(data.user.timezone || 'UTC')
         setLanguage(data.user.language || 'en')
+        setNotifications({
+          paymentConfirmations: data.user.notificationSettings?.paymentConfirmations ?? true,
+          failedTransactions: data.user.notificationSettings?.failedTransactions ?? true,
+          weeklyReports: data.user.notificationSettings?.weeklyReports ?? false,
+          priceAlerts: data.user.notificationSettings?.priceAlerts ?? true,
+          securityAlerts: data.user.notificationSettings?.securityAlerts ?? true,
+        })
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Could not load settings.'
         toast.error(message)
@@ -99,6 +106,13 @@ export default function Settings() {
         preferredCurrency: 'USD' | 'EUR' | 'GBP'
         timezone: string
         language: string
+        notificationSettings: {
+          paymentConfirmations: boolean
+          failedTransactions: boolean
+          weeklyReports: boolean
+          priceAlerts: boolean
+          securityAlerts: boolean
+        }
         phone?: string
       } = {
         firstName,
@@ -106,6 +120,7 @@ export default function Settings() {
         preferredCurrency,
         timezone,
         language,
+        notificationSettings: notifications,
       }
 
       const normalizedPhone = phone.trim()

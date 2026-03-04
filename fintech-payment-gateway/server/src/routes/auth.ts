@@ -20,6 +20,15 @@ function hashOtp(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex')
 }
 
+function getOtpCooldownRemainingSeconds(lastSentAt: Date | null | undefined): number {
+  if (!lastSentAt) {
+    return 0
+  }
+
+  const elapsedSeconds = Math.floor((Date.now() - new Date(lastSentAt).getTime()) / 1000)
+  return Math.max(config.otpResendCooldownSeconds - elapsedSeconds, 0)
+}
+
 function createToken(userId: string): string {
   return jwt.sign(
     { userId },
@@ -38,6 +47,13 @@ function formatUser(user: any) {
     preferredCurrency: user.preferredCurrency || 'USD',
     timezone: user.timezone || 'UTC',
     language: user.language || 'en',
+    notificationSettings: user.notificationSettings || {
+      paymentConfirmations: true,
+      failedTransactions: true,
+      weeklyReports: false,
+      priceAlerts: true,
+      securityAlerts: true,
+    },
     emailVerified: user.emailVerified,
     kycStatus: user.kycStatus,
     walletAddress: user.walletAddress
@@ -59,16 +75,26 @@ router.post('/register', strictRateLimiter, [
   const { email, password, firstName, lastName } = req.body
   const normalizedEmail = String(email).toLowerCase().trim()
 
-  const hashedPassword = await bcrypt.hash(password, 12)
-  const otpCode = createOtpCode()
-  const otpHash = hashOtp(otpCode)
-  const otpExpiry = new Date(Date.now() + config.emailOtpTtlMinutes * 60 * 1000)
-
   let user = await User.findOne({ email: normalizedEmail })
 
   if (user && user.emailVerified) {
     return res.status(409).json({ error: 'User already exists' })
   }
+
+  const cooldownRemainingSeconds = getOtpCooldownRemainingSeconds(user?.emailVerificationOtpLastSentAt)
+  if (cooldownRemainingSeconds > 0) {
+    return res.status(429).json({
+      error: 'Please wait before requesting another verification code.',
+      code: 'OTP_RESEND_COOLDOWN',
+      retryAfterSeconds: cooldownRemainingSeconds,
+    })
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12)
+  const otpCode = createOtpCode()
+  const otpHash = hashOtp(otpCode)
+  const otpExpiry = new Date(Date.now() + config.emailOtpTtlMinutes * 60 * 1000)
+  const otpIssuedAt = new Date()
 
   if (user) {
     user.password = hashedPassword
@@ -76,6 +102,7 @@ router.post('/register', strictRateLimiter, [
     user.lastName = lastName
     user.emailVerificationOtpHash = otpHash
     user.emailVerificationOtpExpiresAt = otpExpiry
+    user.emailVerificationOtpLastSentAt = otpIssuedAt
     user.emailVerificationAttempts = 0
   } else {
     user = new User({
@@ -86,6 +113,7 @@ router.post('/register', strictRateLimiter, [
       emailVerified: false,
       emailVerificationOtpHash: otpHash,
       emailVerificationOtpExpiresAt: otpExpiry,
+      emailVerificationOtpLastSentAt: otpIssuedAt,
       emailVerificationAttempts: 0,
     })
   }
@@ -106,7 +134,8 @@ router.post('/register', strictRateLimiter, [
   res.status(201).json({
     message: 'Verification code sent to your email address.',
     requiresEmailVerification: true,
-    email: user.email
+    email: user.email,
+    retryAfterSeconds: config.otpResendCooldownSeconds,
   })
 }))
 
@@ -135,10 +164,12 @@ router.post('/login', strictRateLimiter, [
   }
 
   if (!user.emailVerified) {
+    const cooldownRemainingSeconds = getOtpCooldownRemainingSeconds(user.emailVerificationOtpLastSentAt)
     return res.status(403).json({
       error: 'Email not verified. Please verify your email before logging in.',
       code: 'EMAIL_NOT_VERIFIED',
-      email: user.email
+      email: user.email,
+      retryAfterSeconds: cooldownRemainingSeconds,
     })
   }
 
@@ -239,9 +270,19 @@ router.post('/resend-verification', strictRateLimiter, [
     return res.status(400).json({ error: 'Email is already verified.' })
   }
 
+  const cooldownRemainingSeconds = getOtpCooldownRemainingSeconds(user.emailVerificationOtpLastSentAt)
+  if (cooldownRemainingSeconds > 0) {
+    return res.status(429).json({
+      error: 'Please wait before requesting another verification code.',
+      code: 'OTP_RESEND_COOLDOWN',
+      retryAfterSeconds: cooldownRemainingSeconds,
+    })
+  }
+
   const otpCode = createOtpCode()
   user.emailVerificationOtpHash = hashOtp(otpCode)
   user.emailVerificationOtpExpiresAt = new Date(Date.now() + config.emailOtpTtlMinutes * 60 * 1000)
+  user.emailVerificationOtpLastSentAt = new Date()
   user.emailVerificationAttempts = 0
   await user.save()
 
@@ -259,7 +300,8 @@ router.post('/resend-verification', strictRateLimiter, [
 
   res.json({
     message: 'A new verification code has been sent.',
-    email: user.email
+    email: user.email,
+    retryAfterSeconds: config.otpResendCooldownSeconds,
   })
 }))
 

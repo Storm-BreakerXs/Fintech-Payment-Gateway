@@ -29,7 +29,15 @@ const userSchema = new mongoose.Schema({
   emailVerified: { type: Boolean, default: false },
   emailVerificationOtpHash: { type: String, default: null },
   emailVerificationOtpExpiresAt: { type: Date, default: null },
+  emailVerificationOtpLastSentAt: { type: Date, default: null },
   emailVerificationAttempts: { type: Number, default: 0 },
+  notificationSettings: {
+    paymentConfirmations: { type: Boolean, default: true },
+    failedTransactions: { type: Boolean, default: true },
+    weeklyReports: { type: Boolean, default: false },
+    priceAlerts: { type: Boolean, default: true },
+    securityAlerts: { type: Boolean, default: true },
+  },
   kycStatus: { 
     type: String, 
     enum: ['pending', 'verified', 'rejected'], 
@@ -60,6 +68,18 @@ const transactionSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 })
+
+userSchema.pre('save', function(this: any, next) {
+  this.updatedAt = new Date()
+  next()
+})
+
+transactionSchema.pre('save', function(this: any, next) {
+  this.updatedAt = new Date()
+  next()
+})
+
+transactionSchema.index({ userId: 1, createdAt: -1 })
 
 // Payment Method Schema
 const paymentMethodSchema = new mongoose.Schema({

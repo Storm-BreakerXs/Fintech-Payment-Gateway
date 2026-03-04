@@ -16,6 +16,13 @@ function formatUser(user: any) {
     preferredCurrency: user.preferredCurrency || 'USD',
     timezone: user.timezone || 'UTC',
     language: user.language || 'en',
+    notificationSettings: user.notificationSettings || {
+      paymentConfirmations: true,
+      failedTransactions: true,
+      weeklyReports: false,
+      priceAlerts: true,
+      securityAlerts: true,
+    },
     emailVerified: user.emailVerified,
     kycStatus: user.kycStatus,
     walletAddress: user.walletAddress,
@@ -37,6 +44,12 @@ router.patch('/me', authenticateToken, [
   body('preferredCurrency').optional().isIn(['USD', 'EUR', 'GBP']),
   body('timezone').optional().trim().isLength({ min: 2, max: 80 }),
   body('language').optional().trim().isLength({ min: 2, max: 10 }),
+  body('notificationSettings').optional().isObject(),
+  body('notificationSettings.paymentConfirmations').optional().isBoolean(),
+  body('notificationSettings.failedTransactions').optional().isBoolean(),
+  body('notificationSettings.weeklyReports').optional().isBoolean(),
+  body('notificationSettings.priceAlerts').optional().isBoolean(),
+  body('notificationSettings.securityAlerts').optional().isBoolean(),
 ], asyncHandler(async (req: any, res: Response) => {
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
@@ -49,7 +62,8 @@ router.patch('/me', authenticateToken, [
     phone,
     preferredCurrency,
     timezone,
-    language
+    language,
+    notificationSettings,
   } = req.body as {
     firstName?: string
     lastName?: string
@@ -57,6 +71,13 @@ router.patch('/me', authenticateToken, [
     preferredCurrency?: string
     timezone?: string
     language?: string
+    notificationSettings?: {
+      paymentConfirmations?: boolean
+      failedTransactions?: boolean
+      weeklyReports?: boolean
+      priceAlerts?: boolean
+      securityAlerts?: boolean
+    }
   }
 
   if (typeof firstName === 'string') req.user.firstName = firstName
@@ -65,6 +86,12 @@ router.patch('/me', authenticateToken, [
   if (typeof preferredCurrency === 'string') req.user.preferredCurrency = preferredCurrency
   if (typeof timezone === 'string') req.user.timezone = timezone
   if (typeof language === 'string') req.user.language = language
+  if (notificationSettings && typeof notificationSettings === 'object') {
+    req.user.notificationSettings = {
+      ...(req.user.notificationSettings || {}),
+      ...notificationSettings,
+    }
+  }
   req.user.updatedAt = new Date()
 
   await req.user.save()

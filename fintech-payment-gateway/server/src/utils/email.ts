@@ -1,11 +1,17 @@
+import axios from 'axios'
 import nodemailer, { Transporter } from 'nodemailer'
 import { config } from '../config/env'
 import { logger } from './logger'
 
 let cachedTransporter: Transporter | null = null
+let smtpVerified: boolean | null = null
 
 function isSmtpConfigured(): boolean {
   return Boolean(config.smtpHost && config.smtpUser && config.smtpPass && config.smtpFrom)
+}
+
+function isResendConfigured(): boolean {
+  return Boolean(config.resendApiKey && (config.resendFrom || config.smtpFrom))
 }
 
 function getTransporter(): Transporter | null {
@@ -28,19 +34,80 @@ function getTransporter(): Transporter | null {
   return cachedTransporter
 }
 
-export async function sendEmailVerificationOtp(email: string, firstName: string, otp: string): Promise<void> {
-  const transporter = getTransporter()
+function maskEmail(email: string): string {
+  const [name, domain] = email.split('@')
+  if (!name || !domain) return email
 
-  if (!transporter) {
-    if (config.isProduction) {
-      throw new Error('Email service not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS, and SMTP_FROM.')
+  if (name.length <= 2) {
+    return `${name[0] || '*'}*@${domain}`
+  }
+
+  return `${name[0]}${'*'.repeat(Math.max(name.length - 2, 1))}${name[name.length - 1]}@${domain}`
+}
+
+async function verifySmtpTransport(transporter: Transporter): Promise<void> {
+  if (smtpVerified !== null) {
+    if (!smtpVerified) {
+      throw new Error('SMTP verification previously failed.')
     }
-
-    // Development fallback so OTP flow can be tested without SMTP.
-    logger.warn(`SMTP not configured. OTP for ${email}: ${otp}`)
     return
   }
 
+  try {
+    await transporter.verify()
+    smtpVerified = true
+    logger.info('SMTP transport verified successfully')
+  } catch (error: any) {
+    smtpVerified = false
+    throw new Error(`SMTP verification failed: ${error.message}`)
+  }
+}
+
+async function sendUsingSmtp(to: string, subject: string, text: string, html: string): Promise<void> {
+  const transporter = getTransporter()
+  if (!transporter) {
+    throw new Error('SMTP is not configured.')
+  }
+
+  await verifySmtpTransport(transporter)
+
+  await transporter.sendMail({
+    from: config.smtpFrom,
+    to,
+    subject,
+    text,
+    html,
+  })
+}
+
+async function sendUsingResend(to: string, subject: string, text: string, html: string): Promise<void> {
+  if (!isResendConfigured()) {
+    throw new Error('Resend is not configured.')
+  }
+
+  const from = config.resendFrom || config.smtpFrom
+
+  await axios.post(
+    'https://api.resend.com/emails',
+    {
+      from,
+      to: [to],
+      subject,
+      text,
+      html,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${config.resendApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    }
+  )
+}
+
+export async function sendEmailVerificationOtp(email: string, firstName: string, otp: string): Promise<void> {
+  const recipient = email.trim().toLowerCase()
   const subject = 'Verify your FinPay account'
   const greetingName = firstName || 'there'
   const html = `
@@ -61,11 +128,33 @@ export async function sendEmailVerificationOtp(email: string, firstName: string,
 
   const text = `Hi ${greetingName}, your FinPay verification code is ${otp}. It expires in ${config.emailOtpTtlMinutes} minutes.`
 
-  await transporter.sendMail({
-    from: config.smtpFrom,
-    to: email,
-    subject,
-    text,
-    html,
-  })
+  if (isSmtpConfigured()) {
+    try {
+      await sendUsingSmtp(recipient, subject, text, html)
+      logger.info(`Verification OTP delivered via SMTP to ${maskEmail(recipient)}`)
+      return
+    } catch (error: any) {
+      logger.error(`SMTP delivery failed for ${maskEmail(recipient)}: ${error.message}`)
+    }
+  }
+
+  if (isResendConfigured()) {
+    try {
+      await sendUsingResend(recipient, subject, text, html)
+      logger.info(`Verification OTP delivered via Resend to ${maskEmail(recipient)}`)
+      return
+    } catch (error: any) {
+      logger.error(`Resend delivery failed for ${maskEmail(recipient)}: ${error.message}`)
+      throw new Error('Email delivery failed across all configured providers.')
+    }
+  }
+
+  if (config.isProduction) {
+    throw new Error(
+      'Email service not configured. Set SMTP_* variables or RESEND_API_KEY and RESEND_FROM.'
+    )
+  }
+
+  // Development fallback so OTP flow can be tested without SMTP provider.
+  logger.warn(`Email provider not configured. OTP for ${recipient}: ${otp}`)
 }

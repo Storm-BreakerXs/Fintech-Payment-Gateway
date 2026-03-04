@@ -93,7 +93,13 @@ fintech-payment-gateway/
 ### Authentication
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - User login
+- `POST /api/auth/verify-email` - Verify email OTP
+- `POST /api/auth/resend-verification` - Resend email OTP
 - `POST /api/auth/verify-kyc` - KYC verification
+
+### User
+- `GET /api/users/me` - Get current user profile/preferences
+- `PATCH /api/users/me` - Update current user profile/preferences
 
 ### Payments
 - `POST /api/payments/fiat` - Process fiat payment

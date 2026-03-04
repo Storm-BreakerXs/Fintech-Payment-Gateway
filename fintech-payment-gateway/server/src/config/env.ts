@@ -68,6 +68,10 @@ function getPositiveInt(value: string | undefined, fallback: number, name: strin
   return parsed
 }
 
+function normalizeSecret(value: string | undefined): string {
+  return (value || '').replace(/\s+/g, '').trim()
+}
+
 const nodeEnv = getNodeEnv(process.env.NODE_ENV)
 const isProduction = nodeEnv === 'production'
 
@@ -85,9 +89,16 @@ const smtpHost = process.env.SMTP_HOST?.trim() || ''
 const smtpPort = getOptionalPort(process.env.SMTP_PORT?.trim(), 587)
 const smtpSecure = (process.env.SMTP_SECURE?.trim() || 'false').toLowerCase() === 'true'
 const smtpUser = process.env.SMTP_USER?.trim() || ''
-const smtpPass = process.env.SMTP_PASS?.trim() || ''
+const smtpPass = normalizeSecret(process.env.SMTP_PASS)
 const smtpFrom = process.env.SMTP_FROM?.trim() || ''
 const emailOtpTtlMinutes = getPositiveInt(process.env.EMAIL_OTP_TTL_MINUTES?.trim(), 10, 'EMAIL_OTP_TTL_MINUTES')
+const otpResendCooldownSeconds = getPositiveInt(
+  process.env.OTP_RESEND_COOLDOWN_SECONDS?.trim(),
+  60,
+  'OTP_RESEND_COOLDOWN_SECONDS'
+)
+const resendApiKey = process.env.RESEND_API_KEY?.trim() || ''
+const resendFrom = process.env.RESEND_FROM?.trim() || ''
 
 if (isProduction && (!stripeSecretKey || !stripeWebhookSecret)) {
   throw new Error('STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET are required in production.')
@@ -115,4 +126,7 @@ export const config = {
   smtpPass,
   smtpFrom,
   emailOtpTtlMinutes,
+  otpResendCooldownSeconds,
+  resendApiKey,
+  resendFrom,
 }
