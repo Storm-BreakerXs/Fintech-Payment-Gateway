@@ -34,6 +34,10 @@ function formatUser(user: any) {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    phone: user.phone || '',
+    preferredCurrency: user.preferredCurrency || 'USD',
+    timezone: user.timezone || 'UTC',
+    language: user.language || 'en',
     emailVerified: user.emailVerified,
     kycStatus: user.kycStatus,
     walletAddress: user.walletAddress

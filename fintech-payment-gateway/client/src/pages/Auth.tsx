@@ -2,13 +2,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, CheckCircle, Lock, Mail, Shield, User } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { API_BASE_URL } from '../utils/api'
+import { AuthUser, setAuthData } from '../utils/auth'
 
 type AuthMode = 'login' | 'register'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  || (import.meta.env.DEV
-    ? 'http://localhost:3001/api'
-    : 'https://fintech-payment-gateway.onrender.com/api')
 
 function getErrorMessage(payload: any): string {
   if (payload?.error && typeof payload.error === 'string') return payload.error
@@ -20,11 +17,8 @@ function getErrorMessage(payload: any): string {
 }
 
 function persistAuth(data: any) {
-  if (data?.token) {
-    localStorage.setItem('finpay_token', data.token)
-  }
-  if (data?.user) {
-    localStorage.setItem('finpay_user', JSON.stringify(data.user))
+  if (data?.token && data?.user) {
+    setAuthData(data.token, data.user as AuthUser)
   }
 }
 
@@ -41,6 +35,13 @@ export default function Auth() {
     () => (searchParams.get('mode') === 'login' ? 'login' : 'register'),
     [searchParams]
   )
+  const postAuthRedirect = useMemo(() => {
+    const redirect = searchParams.get('redirect')
+    if (redirect && redirect.startsWith('/')) {
+      return redirect
+    }
+    return '/dashboard'
+  }, [searchParams])
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -108,7 +109,7 @@ export default function Auth() {
 
       persistAuth(data)
       toast.success('Logged in successfully.')
-      navigate('/dashboard')
+      navigate(postAuthRedirect)
     } catch (error: any) {
       toast.error(error.message || 'Authentication failed.')
     } finally {
@@ -148,7 +149,7 @@ export default function Auth() {
 
       persistAuth(data)
       toast.success('Email verified successfully.')
-      navigate('/dashboard')
+      navigate(postAuthRedirect)
     } catch (error: any) {
       toast.error(error.message || 'Email verification failed.')
     } finally {

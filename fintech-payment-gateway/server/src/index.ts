@@ -15,6 +15,7 @@ import authRoutes from './routes/auth'
 import paymentRoutes from './routes/payments'
 import cryptoRoutes from './routes/crypto'
 import webhookRoutes from './routes/webhooks'
+import userRoutes from './routes/users'
 
 const app = express()
 const server = createServer(app)
@@ -78,6 +79,7 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes)
+app.use('/api/users', userRoutes)
 app.use('/api/payments', paymentRoutes)
 app.use('/api/crypto', cryptoRoutes)
 app.use('/webhooks', webhookRoutes)

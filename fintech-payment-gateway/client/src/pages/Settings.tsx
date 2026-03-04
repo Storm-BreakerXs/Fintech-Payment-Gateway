@@ -1,15 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { 
-  User, 
-  Bell, 
-  Shield, 
-  Wallet, 
-  Globe, 
-  CheckCircle
+import {
+  User,
+  Bell,
+  Shield,
+  Wallet,
+  Globe,
+  CheckCircle,
+  Loader2,
 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useWeb3Store } from '../hooks/useWeb3'
+import { apiRequest } from '../utils/api'
+import { AuthUser, updateStoredUser } from '../utils/auth'
 
-const settingsSections = [
+type SettingsSection = 'profile' | 'notifications' | 'security' | 'wallets' | 'preferences'
+
+interface MeResponse {
+  user: AuthUser
+}
+
+const settingsSections: Array<{ id: SettingsSection; label: string; icon: typeof User }> = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'security', label: 'Security', icon: Shield },
@@ -18,24 +29,131 @@ const settingsSections = [
 ]
 
 export default function Settings() {
-  const [activeSection, setActiveSection] = useState('profile')
+  const [activeSection, setActiveSection] = useState<SettingsSection>('profile')
   const [saved, setSaved] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [profile, setProfile] = useState<AuthUser | null>(null)
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [preferredCurrency, setPreferredCurrency] = useState<'USD' | 'EUR' | 'GBP'>('USD')
+  const [timezone, setTimezone] = useState('UTC')
+  const [language, setLanguage] = useState('en')
+
+  const [notifications, setNotifications] = useState({
+    paymentConfirmations: true,
+    failedTransactions: true,
+    weeklyReports: false,
+    priceAlerts: true,
+    securityAlerts: true,
+  })
+
+  const { isConnected, address, balance, chainId } = useWeb3Store()
+
+  useEffect(() => {
+    async function loadProfile() {
+      setIsLoading(true)
+      try {
+        const data = await apiRequest<MeResponse>('/users/me', {}, true)
+        setProfile(data.user)
+        setFirstName(data.user.firstName || '')
+        setLastName(data.user.lastName || '')
+        setPhone(data.user.phone || '')
+        setPreferredCurrency(data.user.preferredCurrency || 'USD')
+        setTimezone(data.user.timezone || 'UTC')
+        setLanguage(data.user.language || 'en')
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Could not load settings.'
+        toast.error(message)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadProfile()
+  }, [])
+
+  const networkName = useMemo(() => {
+    if (!chainId) return 'Unknown'
+    const networkMap: Record<number, string> = {
+      1: 'Ethereum',
+      5: 'Goerli',
+      56: 'BSC',
+      137: 'Polygon',
+      43114: 'Avalanche',
+      1337: 'Local',
+    }
+    return networkMap[chainId] || `Chain ${chainId}`
+  }, [chainId])
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true)
+    setSaved(false)
+
+    try {
+      const payload: {
+        firstName: string
+        lastName: string
+        preferredCurrency: 'USD' | 'EUR' | 'GBP'
+        timezone: string
+        language: string
+        phone?: string
+      } = {
+        firstName,
+        lastName,
+        preferredCurrency,
+        timezone,
+        language,
+      }
+
+      const normalizedPhone = phone.trim()
+      if (normalizedPhone) {
+        payload.phone = normalizedPhone
+      }
+
+      const data = await apiRequest<MeResponse & { message: string }>(
+        '/users/me',
+        {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        },
+        true
+      )
+
+      setProfile(data.user)
+      updateStoredUser(data.user)
+      setSaved(true)
+      toast.success(data.message || 'Settings saved successfully.')
+      setTimeout(() => setSaved(false), 3000)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not save settings.'
+      toast.error(message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="glass rounded-2xl border border-slate-700 p-12 flex items-center justify-center space-x-3 text-slate-300">
+          <Loader2 className="w-5 h-5 animate-spin" />
+          <span>Loading settings...</span>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2">Settings</h1>
         <p className="text-slate-400">Manage your account and preferences</p>
       </div>
 
       <div className="grid lg:grid-cols-4 gap-8">
-        {/* Sidebar */}
         <div className="lg:col-span-1">
           <div className="glass rounded-2xl border border-slate-700 overflow-hidden">
             {settingsSections.map((section) => {
@@ -58,7 +176,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="lg:col-span-3">
           <motion.div
             key={activeSection}
@@ -70,24 +187,13 @@ export default function Settings() {
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold">Profile Settings</h2>
 
-                <div className="flex items-center space-x-6 mb-8">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center text-3xl font-bold">
-                    JD
-                  </div>
-                  <div>
-                    <button className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm hover:bg-slate-700 transition-colors">
-                      Change Avatar
-                    </button>
-                    <p className="text-sm text-slate-400 mt-2">JPG, PNG or GIF. Max 2MB.</p>
-                  </div>
-                </div>
-
                 <div className="grid sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-2">First Name</label>
                     <input
                       type="text"
-                      defaultValue="John"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
                       className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
                     />
                   </div>
@@ -95,7 +201,8 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-slate-400 mb-2">Last Name</label>
                     <input
                       type="text"
-                      defaultValue="Doe"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
                       className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
                     />
                   </div>
@@ -103,15 +210,18 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-slate-400 mb-2">Email</label>
                     <input
                       type="email"
-                      defaultValue="john@example.com"
-                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
+                      value={profile?.email || ''}
+                      disabled
+                      className="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-slate-400"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-2">Phone</label>
                     <input
                       type="tel"
-                      defaultValue="+1 (555) 123-4567"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+1 555 000 0000"
                       className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
                     />
                   </div>
@@ -125,83 +235,55 @@ export default function Settings() {
 
                 <div className="space-y-4">
                   {[
-                    { label: 'Payment confirmations', desc: 'Receive notifications when payments are completed', default: true },
-                    { label: 'Failed transactions', desc: 'Get alerted about failed or declined transactions', default: true },
-                    { label: 'Weekly reports', desc: 'Receive weekly summary of your payment activity', default: false },
-                    { label: 'Price alerts', desc: 'Get notified about significant crypto price changes', default: true },
-                    { label: 'Security alerts', desc: 'Important security notifications and login attempts', default: true },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
-                      <div>
-                        <div className="font-medium">{item.label}</div>
-                        <div className="text-sm text-slate-400">{item.desc}</div>
+                    { key: 'paymentConfirmations', label: 'Payment confirmations', desc: 'Notify me when payments complete' },
+                    { key: 'failedTransactions', label: 'Failed transactions', desc: 'Alert me when payments fail' },
+                    { key: 'weeklyReports', label: 'Weekly reports', desc: 'Send weekly account summaries' },
+                    { key: 'priceAlerts', label: 'Price alerts', desc: 'Notify me of major crypto price moves' },
+                    { key: 'securityAlerts', label: 'Security alerts', desc: 'Critical account and login alerts' },
+                  ].map((item) => {
+                    const key = item.key as keyof typeof notifications
+                    return (
+                      <div key={item.key} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
+                        <div>
+                          <div className="font-medium">{item.label}</div>
+                          <div className="text-sm text-slate-400">{item.desc}</div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={notifications[key]}
+                            onChange={(e) => setNotifications((prev) => ({ ...prev, [key]: e.target.checked }))}
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500" />
+                        </label>
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" defaultChecked={item.default} className="sr-only peer" />
-                        <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
-                      </label>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
 
             {activeSection === 'security' && (
               <div className="space-y-6">
-                <h2 className="text-2xl font-bold">Security Settings</h2>
+                <h2 className="text-2xl font-bold">Security</h2>
 
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-start space-x-3">
-                  <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="font-medium text-emerald-400">Two-Factor Authentication Enabled</div>
-                    <div className="text-sm text-slate-400">Your account is protected with 2FA</div>
+                <div className="p-4 bg-slate-800/50 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">Email verification</span>
+                    <span className={`text-sm ${profile?.emailVerified ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                      {profile?.emailVerified ? 'Verified' : 'Pending'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">KYC status</span>
+                    <span className="text-sm text-slate-200 capitalize">{profile?.kycStatus || 'pending'}</span>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-2">Current Password</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-2">New Password</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-2">Confirm New Password</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-800">
-                  <h3 className="font-semibold mb-4">Active Sessions</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                          <Globe className="w-5 h-5 text-emerald-400" />
-                        </div>
-                        <div>
-                          <div className="font-medium">Chrome on MacOS</div>
-                          <div className="text-sm text-slate-400">Current session • San Francisco, CA</div>
-                        </div>
-                      </div>
-                      <span className="text-xs text-emerald-400 bg-emerald-500/20 px-2 py-1 rounded">Active</span>
-                    </div>
-                  </div>
-                </div>
+                <p className="text-sm text-slate-400">
+                  Password reset and session management endpoints can be added next if you want advanced security controls.
+                </p>
               </div>
             )}
 
@@ -209,28 +291,22 @@ export default function Settings() {
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold">Connected Wallets</h2>
 
-                <div className="space-y-4">
+                {isConnected && address ? (
                   <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-emerald-500/30">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center text-2xl">
-                        🦊
-                      </div>
-                      <div>
-                        <div className="font-medium">MetaMask</div>
-                        <div className="text-sm text-slate-400 font-mono">0x742d...bEb</div>
-                      </div>
+                    <div>
+                      <div className="font-medium">{networkName}</div>
+                      <div className="text-sm text-slate-400 font-mono">{address}</div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-sm text-emerald-400">Connected</span>
+                    <div className="text-right">
+                      <div className="text-emerald-400 text-sm">Connected</div>
+                      <div className="text-slate-300 text-sm">{Number(balance || '0').toFixed(4)} ETH</div>
                     </div>
                   </div>
-
-                  <button className="w-full flex items-center justify-center space-x-2 p-4 border-2 border-dashed border-slate-700 rounded-xl text-slate-400 hover:border-emerald-500/50 hover:text-emerald-400 transition-all">
-                    <span className="text-2xl">+</span>
-                    <span>Connect Another Wallet</span>
-                  </button>
-                </div>
+                ) : (
+                  <div className="p-4 bg-slate-800/50 rounded-xl text-slate-400">
+                    No wallet connected. Use the Connect Wallet button in the navbar.
+                  </div>
+                )}
               </div>
             )}
 
@@ -238,41 +314,48 @@ export default function Settings() {
               <div className="space-y-6">
                 <h2 className="text-2xl font-bold">Preferences</h2>
 
-                <div className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-2">Currency</label>
-                    <select className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors">
+                    <select
+                      value={preferredCurrency}
+                      onChange={(e) => setPreferredCurrency(e.target.value as 'USD' | 'EUR' | 'GBP')}
+                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
+                    >
                       <option value="USD">USD - US Dollar</option>
                       <option value="EUR">EUR - Euro</option>
                       <option value="GBP">GBP - British Pound</option>
-                      <option value="JPY">JPY - Japanese Yen</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-2">Timezone</label>
-                    <select className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors">
-                      <option value="UTC">UTC (Coordinated Universal Time)</option>
-                      <option value="EST">EST (Eastern Standard Time)</option>
-                      <option value="PST">PST (Pacific Standard Time)</option>
-                      <option value="GMT">GMT (Greenwich Mean Time)</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-2">Language</label>
-                    <select className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors">
+                    <select
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
+                    >
                       <option value="en">English</option>
                       <option value="es">Spanish</option>
                       <option value="fr">French</option>
                       <option value="de">German</option>
                     </select>
                   </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate-400 mb-2">Timezone</label>
+                    <input
+                      type="text"
+                      value={timezone}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      placeholder="UTC"
+                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:border-emerald-500 transition-colors"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Save Button */}
             <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
-              {saved && (
+              {saved ? (
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -281,13 +364,15 @@ export default function Settings() {
                   <CheckCircle className="w-5 h-5" />
                   <span>Changes saved successfully!</span>
                 </motion.div>
+              ) : (
+                <div />
               )}
-              <div className="flex-1"></div>
               <button
-                onClick={handleSave}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
+                onClick={handleSaveProfile}
+                disabled={isSaving}
+                className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift disabled:opacity-60"
               >
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </motion.div>

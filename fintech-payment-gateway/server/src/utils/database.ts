@@ -18,6 +18,14 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   firstName: { type: String, required: true },
   lastName: { type: String, required: true },
+  phone: { type: String, default: '' },
+  preferredCurrency: {
+    type: String,
+    enum: ['USD', 'EUR', 'GBP'],
+    default: 'USD'
+  },
+  timezone: { type: String, default: 'UTC' },
+  language: { type: String, default: 'en' },
   emailVerified: { type: Boolean, default: false },
   emailVerificationOtpHash: { type: String, default: null },
   emailVerificationOtpExpiresAt: { type: Date, default: null },

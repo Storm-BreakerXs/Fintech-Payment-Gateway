@@ -15,13 +15,10 @@ import { QRCodeSVG } from 'qrcode.react'
 import Card3D from '../components/Card3D'
 import { useWeb3Store } from '../hooks/useWeb3'
 import toast from 'react-hot-toast'
+import { API_BASE_URL } from '../utils/api'
 
 type PaymentMethod = 'card' | 'crypto'
 type PaymentStep = 'amount' | 'details' | 'confirm' | 'processing' | 'success'
-const API_BASE_URL = import.meta.env.VITE_API_URL
-  || (import.meta.env.DEV
-    ? 'http://localhost:3001/api'
-    : 'https://fintech-payment-gateway.onrender.com/api')
 
 export default function Payment() {
   const [searchParams] = useSearchParams()

@@ -9,6 +9,7 @@ import Transactions from './pages/Transactions'
 import Settings from './pages/Settings'
 import Auth from './pages/Auth'
 import SitePage from './pages/SitePage'
+import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
   const { initialize } = useWeb3Store()
@@ -25,9 +26,30 @@ function App() {
         <Route path="/login" element={<Navigate to="/auth?mode=login" replace />} />
         <Route path="/register" element={<Navigate to="/auth?mode=register" replace />} />
         <Route path="/payment" element={<Payment />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/transactions" element={<Transactions />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route
+          path="/dashboard"
+          element={(
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/transactions"
+          element={(
+            <ProtectedRoute>
+              <Transactions />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/settings"
+          element={(
+            <ProtectedRoute>
+              <Settings />
+            </ProtectedRoute>
+          )}
+        />
         <Route path="/:slug" element={<SitePage />} />
       </Routes>
     </Layout>
