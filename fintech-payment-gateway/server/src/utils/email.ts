@@ -110,6 +110,7 @@ export async function sendEmailVerificationOtp(email: string, firstName: string,
   const recipient = email.trim().toLowerCase()
   const subject = 'Verify your FinPay account'
   const greetingName = firstName || 'there'
+  let smtpFailureMessage = ''
   const html = `
     <div style="font-family: Arial, sans-serif; color: #0f172a; max-width: 560px; margin: 0 auto;">
       <h2 style="margin-bottom: 16px;">Email Verification</h2>
@@ -134,7 +135,8 @@ export async function sendEmailVerificationOtp(email: string, firstName: string,
       logger.info(`Verification OTP delivered via SMTP to ${maskEmail(recipient)}`)
       return
     } catch (error: any) {
-      logger.error(`SMTP delivery failed for ${maskEmail(recipient)}: ${error.message}`)
+      smtpFailureMessage = error.message || 'Unknown SMTP error.'
+      logger.error(`SMTP delivery failed for ${maskEmail(recipient)}: ${smtpFailureMessage}`)
     }
   }
 
@@ -153,6 +155,10 @@ export async function sendEmailVerificationOtp(email: string, firstName: string,
     throw new Error(
       'Email service not configured. Set SMTP_* variables or RESEND_API_KEY and RESEND_FROM.'
     )
+  }
+
+  if (smtpFailureMessage) {
+    throw new Error(`SMTP delivery failed: ${smtpFailureMessage}`)
   }
 
   // Development fallback so OTP flow can be tested without SMTP provider.
