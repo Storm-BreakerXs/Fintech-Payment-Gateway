@@ -1,6 +1,15 @@
-import { create } from 'zustand'
 import { ethers } from 'ethers'
 import toast from 'react-hot-toast'
+import { create } from 'zustand'
+import type { CoinbaseWalletProvider } from '@coinbase/wallet-sdk'
+
+export type WalletType = 'metamask' | 'walletconnect' | 'coinbase'
+
+interface Eip1193Provider {
+  request: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>
+  on?: (event: string, listener: (...args: unknown[]) => void) => void
+  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void
+}
 
 interface Web3State {
   provider: ethers.BrowserProvider | null
@@ -10,7 +19,7 @@ interface Web3State {
   chainId: number | null
   isConnected: boolean
   isConnecting: boolean
-  connect: (walletType: string) => Promise<void>
+  connect: (walletType: WalletType) => Promise<void>
   disconnect: () => void
   initialize: () => void
   switchNetwork: (chainId: number) => Promise<void>
@@ -18,6 +27,73 @@ interface Web3State {
 }
 
 const SUPPORTED_CHAINS = [1, 137, 56, 43114, 5, 1337]
+const WALLET_ADDRESS_KEY = 'walletAddress'
+const WALLET_TYPE_KEY = 'walletType'
+
+const DEFAULT_RPC_URLS: Record<number, string> = {
+  1: 'https://cloudflare-eth.com',
+  5: 'https://ethereum-goerli.publicnode.com',
+  56: 'https://bsc-dataseed.binance.org',
+  137: 'https://polygon-rpc.com',
+  43114: 'https://api.avax.network/ext/bc/C/rpc',
+}
+
+type CoinbaseWalletSDKCtor = (typeof import('@coinbase/wallet-sdk'))['default']
+
+let coinbaseWalletSdk: InstanceType<CoinbaseWalletSDKCtor> | null = null
+let coinbaseWalletProvider: CoinbaseWalletProvider | null = null
+let activeExternalProvider: Eip1193Provider | null = null
+let activeAccountsChangedHandler: ((...args: unknown[]) => void) | null = null
+let activeChainChangedHandler: ((...args: unknown[]) => void) | null = null
+let activeWalletType: WalletType | null = null
+
+function getSavedWalletType(): WalletType {
+  const saved = localStorage.getItem(WALLET_TYPE_KEY)
+  if (saved === 'metamask' || saved === 'walletconnect' || saved === 'coinbase') {
+    return saved
+  }
+  return 'metamask'
+}
+
+function getDefaultCoinbaseChainId(): number {
+  const raw = import.meta.env.VITE_COINBASE_CHAIN_ID
+  if (!raw) return 1
+
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return 1
+  }
+
+  return parsed
+}
+
+function getCoinbaseRpcUrl(chainId: number): string {
+  const envRpc = import.meta.env.VITE_COINBASE_RPC_URL?.trim()
+  if (envRpc) {
+    return envRpc
+  }
+
+  return DEFAULT_RPC_URLS[chainId] || DEFAULT_RPC_URLS[1]
+}
+
+function clearWalletStorage(): void {
+  localStorage.removeItem(WALLET_ADDRESS_KEY)
+  localStorage.removeItem(WALLET_TYPE_KEY)
+}
+
+function detachProviderListeners(): void {
+  if (activeExternalProvider?.removeListener && activeAccountsChangedHandler) {
+    activeExternalProvider.removeListener('accountsChanged', activeAccountsChangedHandler)
+  }
+
+  if (activeExternalProvider?.removeListener && activeChainChangedHandler) {
+    activeExternalProvider.removeListener('chainChanged', activeChainChangedHandler)
+  }
+
+  activeAccountsChangedHandler = null
+  activeChainChangedHandler = null
+  activeExternalProvider = null
+}
 
 export const useWeb3Store = create<Web3State>((set, get) => ({
   provider: null,
@@ -29,82 +105,121 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
   isConnecting: false,
 
   initialize: () => {
-    // Check if wallet was previously connected
-    const savedAddress = localStorage.getItem('walletAddress')
-    if (savedAddress && window.ethereum) {
-      get().connect('metamask').catch(() => {
-        localStorage.removeItem('walletAddress')
-      })
+    const savedAddress = localStorage.getItem(WALLET_ADDRESS_KEY)
+    if (!savedAddress) {
+      return
     }
+
+    const savedWalletType = getSavedWalletType()
+    void get().connect(savedWalletType).catch(() => {
+      clearWalletStorage()
+    })
   },
 
-  connect: async (walletType: string) => {
+  connect: async (walletType: WalletType) => {
     const state = get()
     if (state.isConnecting) return
 
     set({ isConnecting: true })
 
     try {
+      detachProviderListeners()
+
+      if (walletType === 'walletconnect') {
+        throw new Error('WalletConnect integration coming soon.')
+      }
+
+      let externalProvider: Eip1193Provider
+
       if (walletType === 'metamask') {
         if (!window.ethereum) {
           throw new Error('MetaMask not installed. Please install MetaMask.')
         }
+        externalProvider = window.ethereum as Eip1193Provider
+      } else {
+        const defaultChainId = getDefaultCoinbaseChainId()
+        const jsonRpcUrl = getCoinbaseRpcUrl(defaultChainId)
+        const appName = import.meta.env.VITE_COINBASE_APP_NAME?.trim() || 'FinPay'
+        const appLogoUrl = import.meta.env.VITE_COINBASE_APP_LOGO_URL?.trim() || null
+        const { default: CoinbaseWalletSDK } = await import('@coinbase/wallet-sdk')
 
-        const provider = new ethers.BrowserProvider(window.ethereum)
-
-        // Request account access
-        const accounts = await provider.send('eth_requestAccounts', [])
-
-        if (accounts.length === 0) {
-          throw new Error('No accounts found. Please unlock MetaMask.')
+        if (!coinbaseWalletSdk) {
+          coinbaseWalletSdk = new CoinbaseWalletSDK({
+            appName,
+            appLogoUrl,
+            reloadOnDisconnect: false,
+          })
         }
 
-        const signer = await provider.getSigner()
-        const address = await signer.getAddress()
-        const network = await provider.getNetwork()
-        const chainId = Number(network.chainId)
-
-        // Check if chain is supported
-        if (!SUPPORTED_CHAINS.includes(chainId)) {
-          toast.error('Please switch to a supported network (Ethereum, Polygon, BSC, or Avalanche)')
+        if (!coinbaseWalletProvider) {
+          coinbaseWalletProvider = coinbaseWalletSdk.makeWeb3Provider(jsonRpcUrl, defaultChainId)
+        } else {
+          coinbaseWalletProvider.setProviderInfo(jsonRpcUrl, defaultChainId)
         }
 
-        // Get balance
-        const balanceWei = await provider.getBalance(address)
-        const balance = ethers.formatEther(balanceWei)
+        externalProvider = coinbaseWalletProvider as unknown as Eip1193Provider
+      }
 
-        // Set up event listeners
-        window.ethereum.on('accountsChanged', (accounts: string[]) => {
-          if (accounts.length === 0) {
-            get().disconnect()
-          } else {
-            get().connect('metamask')
-          }
-        })
+      const provider = new ethers.BrowserProvider(externalProvider)
+      const accounts = await provider.send('eth_requestAccounts', [])
 
-        window.ethereum.on('chainChanged', () => {
-          window.location.reload()
-        })
+      if (accounts.length === 0) {
+        throw new Error('No wallet account found. Please unlock your wallet.')
+      }
 
-        localStorage.setItem('walletAddress', address)
+      const signer = await provider.getSigner()
+      const address = await signer.getAddress()
+      const network = await provider.getNetwork()
+      const chainId = Number(network.chainId)
 
-        set({
-          provider,
-          signer,
-          address,
-          balance,
-          chainId,
-          isConnected: true,
-          isConnecting: false,
-        })
+      if (!SUPPORTED_CHAINS.includes(chainId)) {
+        toast.error('Please switch to a supported network (Ethereum, Polygon, BSC, or Avalanche)')
+      }
 
-        toast.success('Wallet connected successfully!')
-      } else if (walletType === 'walletconnect') {
-        // WalletConnect implementation would go here
-        toast.error('WalletConnect coming soon!')
-      } else if (walletType === 'coinbase') {
-        // Coinbase Wallet implementation would go here
-        toast.error('Coinbase Wallet coming soon!')
+      const balanceWei = await provider.getBalance(address)
+      const balance = ethers.formatEther(balanceWei)
+
+      activeAccountsChangedHandler = (...args: unknown[]) => {
+        const nextAccountsRaw = args[0]
+        const nextAccounts = Array.isArray(nextAccountsRaw)
+          ? nextAccountsRaw.filter((item): item is string => typeof item === 'string')
+          : []
+
+        if (nextAccounts.length === 0) {
+          get().disconnect()
+          return
+        }
+
+        void get().connect(walletType)
+      }
+
+      activeChainChangedHandler = () => {
+        window.location.reload()
+      }
+
+      externalProvider.on?.('accountsChanged', activeAccountsChangedHandler)
+      externalProvider.on?.('chainChanged', activeChainChangedHandler)
+
+      activeExternalProvider = externalProvider
+      activeWalletType = walletType
+
+      localStorage.setItem(WALLET_ADDRESS_KEY, address)
+      localStorage.setItem(WALLET_TYPE_KEY, walletType)
+
+      set({
+        provider,
+        signer,
+        address,
+        balance,
+        chainId,
+        isConnected: true,
+        isConnecting: false,
+      })
+
+      if (walletType === 'coinbase') {
+        toast.success('Coinbase Wallet connected successfully!')
+      } else {
+        toast.success('MetaMask connected successfully!')
       }
     } catch (error) {
       set({ isConnecting: false })
@@ -114,12 +229,15 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
   },
 
   disconnect: () => {
-    localStorage.removeItem('walletAddress')
+    clearWalletStorage()
+    detachProviderListeners()
 
-    if (window.ethereum) {
-      window.ethereum.removeAllListeners('accountsChanged')
-      window.ethereum.removeAllListeners('chainChanged')
+    if (activeWalletType === 'coinbase') {
+      coinbaseWalletProvider?.disconnect()
+      coinbaseWalletProvider = null
     }
+
+    activeWalletType = null
 
     set({
       provider: null,
@@ -136,17 +254,20 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
 
   switchNetwork: async (targetChainId: number) => {
     const { provider } = get()
-    if (!provider || !window.ethereum) return
+    const requestProvider = activeExternalProvider || (window.ethereum as Eip1193Provider | undefined)
+
+    if (!provider || !requestProvider) return
 
     try {
-      await window.ethereum.request({
+      await requestProvider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${targetChainId.toString(16)}` }],
       })
-    } catch (switchError: any) {
-      // Chain not added to MetaMask
+    } catch (error) {
+      const switchError = error as { code?: number }
+
       if (switchError.code === 4902) {
-        const chainParams: Record<number, any> = {
+        const chainParams: Record<number, unknown> = {
           137: {
             chainId: '0x89',
             chainName: 'Polygon Mainnet',
@@ -171,9 +292,9 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
         }
 
         if (chainParams[targetChainId]) {
-          await window.ethereum.request({
+          await requestProvider.request({
             method: 'wallet_addEthereumChain',
-            params: [chainParams[targetChainId]],
+            params: [chainParams[targetChainId] as object],
           })
         }
       }
@@ -194,7 +315,6 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
   },
 }))
 
-// Type declaration for window.ethereum
 declare global {
   interface Window {
     ethereum?: any

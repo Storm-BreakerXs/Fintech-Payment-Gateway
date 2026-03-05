@@ -1,14 +1,20 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Wallet, AlertCircle } from 'lucide-react'
-import { useWeb3Store } from '../hooks/useWeb3'
+import { WalletType, useWeb3Store } from '../hooks/useWeb3'
 
 interface WalletModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
-const wallets = [
+const wallets: Array<{
+  id: WalletType
+  name: string
+  description: string
+  icon: string
+  color: string
+}> = [
   {
     id: 'metamask',
     name: 'MetaMask',
@@ -37,7 +43,7 @@ export default function WalletModal({ isOpen, onClose }: WalletModalProps) {
   const [error, setError] = useState<string | null>(null)
   const { connect } = useWeb3Store()
 
-  const handleConnect = async (walletId: string) => {
+  const handleConnect = async (walletId: WalletType) => {
     setIsConnecting(true)
     setError(null)
 
