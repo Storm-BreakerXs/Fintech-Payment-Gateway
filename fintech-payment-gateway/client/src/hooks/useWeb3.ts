@@ -11,6 +11,12 @@ interface Eip1193Provider {
   removeListener?: (event: string, listener: (...args: unknown[]) => void) => void
 }
 
+interface InjectedEthereumProvider extends Eip1193Provider {
+  isMetaMask?: boolean
+  isCoinbaseWallet?: boolean
+  providers?: InjectedEthereumProvider[]
+}
+
 interface Web3State {
   provider: ethers.BrowserProvider | null
   signer: ethers.JsonRpcSigner | null
@@ -46,6 +52,36 @@ let activeExternalProvider: Eip1193Provider | null = null
 let activeAccountsChangedHandler: ((...args: unknown[]) => void) | null = null
 let activeChainChangedHandler: ((...args: unknown[]) => void) | null = null
 let activeWalletType: WalletType | null = null
+
+function getInjectedProviders(): InjectedEthereumProvider[] {
+  if (!window.ethereum) {
+    return []
+  }
+
+  const ethereum = window.ethereum as InjectedEthereumProvider
+  if (Array.isArray(ethereum.providers)) {
+    return ethereum.providers
+  }
+
+  return [ethereum]
+}
+
+function pickInjectedProvider(walletType: WalletType): InjectedEthereumProvider | null {
+  const providers = getInjectedProviders()
+  if (providers.length === 0) {
+    return null
+  }
+
+  if (walletType === 'coinbase') {
+    return providers.find((provider) => provider.isCoinbaseWallet) || null
+  }
+
+  if (walletType === 'metamask') {
+    return providers.find((provider) => provider.isMetaMask && !provider.isCoinbaseWallet) || null
+  }
+
+  return null
+}
 
 function getSavedWalletType(): WalletType {
   const saved = localStorage.getItem(WALLET_TYPE_KEY)
@@ -132,32 +168,38 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
       let externalProvider: Eip1193Provider
 
       if (walletType === 'metamask') {
-        if (!window.ethereum) {
+        const injectedMetaMask = pickInjectedProvider('metamask')
+        if (!injectedMetaMask) {
           throw new Error('MetaMask not installed. Please install MetaMask.')
         }
-        externalProvider = window.ethereum as Eip1193Provider
+        externalProvider = injectedMetaMask
       } else {
-        const defaultChainId = getDefaultCoinbaseChainId()
-        const jsonRpcUrl = getCoinbaseRpcUrl(defaultChainId)
-        const appName = import.meta.env.VITE_COINBASE_APP_NAME?.trim() || 'FinPay'
-        const appLogoUrl = import.meta.env.VITE_COINBASE_APP_LOGO_URL?.trim() || null
-        const { default: CoinbaseWalletSDK } = await import('@coinbase/wallet-sdk')
-
-        if (!coinbaseWalletSdk) {
-          coinbaseWalletSdk = new CoinbaseWalletSDK({
-            appName,
-            appLogoUrl,
-            reloadOnDisconnect: false,
-          })
-        }
-
-        if (!coinbaseWalletProvider) {
-          coinbaseWalletProvider = coinbaseWalletSdk.makeWeb3Provider(jsonRpcUrl, defaultChainId)
+        const injectedCoinbase = pickInjectedProvider('coinbase')
+        if (injectedCoinbase) {
+          externalProvider = injectedCoinbase
         } else {
-          coinbaseWalletProvider.setProviderInfo(jsonRpcUrl, defaultChainId)
-        }
+          const defaultChainId = getDefaultCoinbaseChainId()
+          const jsonRpcUrl = getCoinbaseRpcUrl(defaultChainId)
+          const appName = import.meta.env.VITE_COINBASE_APP_NAME?.trim() || 'FinPay'
+          const appLogoUrl = import.meta.env.VITE_COINBASE_APP_LOGO_URL?.trim() || null
+          const { default: CoinbaseWalletSDK } = await import('@coinbase/wallet-sdk')
 
-        externalProvider = coinbaseWalletProvider as unknown as Eip1193Provider
+          if (!coinbaseWalletSdk) {
+            coinbaseWalletSdk = new CoinbaseWalletSDK({
+              appName,
+              appLogoUrl,
+              reloadOnDisconnect: false,
+            })
+          }
+
+          if (!coinbaseWalletProvider) {
+            coinbaseWalletProvider = coinbaseWalletSdk.makeWeb3Provider(jsonRpcUrl, defaultChainId)
+          } else {
+            coinbaseWalletProvider.setProviderInfo(jsonRpcUrl, defaultChainId)
+          }
+
+          externalProvider = coinbaseWalletProvider as unknown as Eip1193Provider
+        }
       }
 
       const provider = new ethers.BrowserProvider(externalProvider)
@@ -232,7 +274,7 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
     clearWalletStorage()
     detachProviderListeners()
 
-    if (activeWalletType === 'coinbase') {
+    if (activeWalletType === 'coinbase' && activeExternalProvider === (coinbaseWalletProvider as unknown as Eip1193Provider | null)) {
       coinbaseWalletProvider?.disconnect()
       coinbaseWalletProvider = null
     }
