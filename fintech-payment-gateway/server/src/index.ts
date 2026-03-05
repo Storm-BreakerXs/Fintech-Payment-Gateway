@@ -27,6 +27,11 @@ const allowedOrigins = config.clientUrl
   .filter(Boolean)
 
 logger.info(`Configured CORS origins: ${allowedOrigins.join(', ') || '(none)'}`)
+logger.info(
+  `Email providers: SMTP=${Boolean(config.smtpHost && config.smtpUser && config.smtpPass)} ` +
+  `(host=${config.smtpHost || 'unset'}, user=${config.smtpUser || 'unset'}, from=${config.smtpFrom || 'unset'}), ` +
+  `Resend=${Boolean(config.resendApiKey)}`
+)
 
 function isDynamicAllowedOrigin(origin: string): boolean {
   return /^http:\/\/localhost:\d+$/i.test(origin)

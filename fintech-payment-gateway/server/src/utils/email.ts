@@ -7,11 +7,18 @@ let cachedTransporter: Transporter | null = null
 let smtpVerified: boolean | null = null
 
 function isSmtpConfigured(): boolean {
-  return Boolean(config.smtpHost && config.smtpUser && config.smtpPass && config.smtpFrom)
+  return Boolean(config.smtpHost && config.smtpUser && config.smtpPass)
 }
 
 function isResendConfigured(): boolean {
-  return Boolean(config.resendApiKey && (config.resendFrom || config.smtpFrom))
+  return Boolean(config.resendApiKey && (config.resendFrom || config.smtpFrom || config.smtpUser))
+}
+
+function resolveSmtpFrom(): string {
+  if (config.smtpFrom && config.smtpFrom.includes('@')) {
+    return config.smtpFrom
+  }
+  return config.smtpUser
 }
 
 function getTransporter(): Transporter | null {
@@ -71,8 +78,12 @@ async function sendUsingSmtp(to: string, subject: string, text: string, html: st
 
   await verifySmtpTransport(transporter)
 
+  const from = resolveSmtpFrom()
+
   await transporter.sendMail({
-    from: config.smtpFrom,
+    from,
+    sender: config.smtpUser,
+    replyTo: config.smtpUser,
     to,
     subject,
     text,
@@ -85,7 +96,7 @@ async function sendUsingResend(to: string, subject: string, text: string, html: 
     throw new Error('Resend is not configured.')
   }
 
-  const from = config.resendFrom || config.smtpFrom
+  const from = config.resendFrom || resolveSmtpFrom()
 
   await axios.post(
     'https://api.resend.com/emails',
@@ -132,7 +143,7 @@ export async function sendEmailVerificationOtp(email: string, firstName: string,
   if (isSmtpConfigured()) {
     try {
       await sendUsingSmtp(recipient, subject, text, html)
-      logger.info(`Verification OTP delivered via SMTP to ${maskEmail(recipient)}`)
+      logger.info(`Verification OTP delivered via SMTP (${resolveSmtpFrom()}) to ${maskEmail(recipient)}`)
       return
     } catch (error: any) {
       smtpFailureMessage = error.message || 'Unknown SMTP error.'
