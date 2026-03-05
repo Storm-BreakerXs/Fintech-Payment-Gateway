@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Wallet, 
@@ -10,10 +10,12 @@ import {
   Menu, 
   X,
   Shield,
-  ChevronDown
+  ChevronDown,
+  LogOut
 } from 'lucide-react'
 import { useWeb3Store } from '../hooks/useWeb3'
 import WalletModal from './WalletModal'
+import { clearAuthData, getStoredUser, isAuthenticated } from '../utils/auth'
 
 const navItems = [
   { path: '/', label: 'Home', icon: CreditCard },
@@ -27,7 +29,10 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [showWalletModal, setShowWalletModal] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
   const { address, isConnected, disconnect, balance, chainId } = useWeb3Store()
+  const authenticated = isAuthenticated()
+  const user = getStoredUser()
 
   const formatAddress = (addr: string) => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
@@ -43,6 +48,15 @@ export default function Navbar() {
       1337: 'Local',
     }
     return networks[chainId] || 'Unknown'
+  }
+
+  const handleLogout = () => {
+    clearAuthData()
+    if (isConnected) {
+      disconnect()
+    }
+    setIsOpen(false)
+    navigate('/auth?mode=login', { replace: true })
   }
 
   return (
@@ -82,6 +96,20 @@ export default function Navbar() {
 
             {/* Wallet Connection */}
             <div className="hidden md:flex items-center space-x-4">
+              {authenticated && (
+                <>
+                  <span className="text-sm text-slate-300">
+                    {user?.firstName ? `Hi, ${user.firstName}` : 'Signed in'}
+                  </span>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2 px-3 py-2 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-white/5 transition-all"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-sm font-medium">Logout</span>
+                  </button>
+                </>
+              )}
               {isConnected && address ? (
                 <div className="flex items-center space-x-3">
                   <div className="flex flex-col items-end">
@@ -158,6 +186,15 @@ export default function Navbar() {
                     </Link>
                   )
                 })}
+                {authenticated && (
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-white/5 transition-all mt-4"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="font-medium">Logout</span>
+                  </button>
+                )}
                 {!isConnected && (
                   <button
                     onClick={() => {
