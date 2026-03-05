@@ -8,11 +8,14 @@ import {
   Globe,
   CheckCircle,
   Loader2,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useWeb3Store } from '../hooks/useWeb3'
 import { apiRequest } from '../utils/api'
-import { AuthUser, updateStoredUser } from '../utils/auth'
+import { AuthUser, clearAuthData, updateStoredUser } from '../utils/auth'
 
 type SettingsSection = 'profile' | 'notifications' | 'security' | 'wallets' | 'preferences'
 
@@ -29,10 +32,14 @@ const settingsSections: Array<{ id: SettingsSection; label: string; icon: typeof
 ]
 
 export default function Settings() {
+  const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile')
   const [saved, setSaved] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [profile, setProfile] = useState<AuthUser | null>(null)
 
   const [firstName, setFirstName] = useState('')
@@ -95,6 +102,10 @@ export default function Settings() {
     return networkMap[chainId] || `Chain ${chainId}`
   }, [chainId])
 
+  const canSaveProfileSettings = activeSection === 'profile'
+    || activeSection === 'notifications'
+    || activeSection === 'preferences'
+
   const handleSaveProfile = async () => {
     setIsSaving(true)
     setSaved(false)
@@ -147,6 +158,43 @@ export default function Settings() {
       toast.error(message)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation.trim().toUpperCase() !== 'DELETE') {
+      toast.error('Type DELETE to confirm account deletion.')
+      return
+    }
+
+    if (!deletePassword.trim()) {
+      toast.error('Enter your password to continue.')
+      return
+    }
+
+    setIsDeleting(true)
+
+    try {
+      const data = await apiRequest<{ message: string }>(
+        '/users/me',
+        {
+          method: 'DELETE',
+          body: JSON.stringify({
+            password: deletePassword,
+            confirmation: 'DELETE',
+          }),
+        },
+        true
+      )
+
+      clearAuthData()
+      toast.success(data.message || 'Account deleted successfully.')
+      navigate('/auth', { replace: true })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not delete account.'
+      toast.error(message)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -299,6 +347,48 @@ export default function Settings() {
                 <p className="text-sm text-slate-400">
                   Password reset and session management endpoints can be added next if you want advanced security controls.
                 </p>
+
+                <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-5 space-y-4">
+                  <div className="flex items-center space-x-2 text-red-300">
+                    <AlertTriangle className="w-5 h-5" />
+                    <h3 className="text-lg font-semibold">Danger Zone</h3>
+                  </div>
+
+                  <p className="text-sm text-red-200/90">
+                    Deleting your account is permanent. Your profile, saved payment methods, and transaction history in this app will be removed.
+                  </p>
+
+                  <div>
+                    <label className="block text-sm font-medium text-red-200 mb-2">Type DELETE to confirm</label>
+                    <input
+                      type="text"
+                      value={deleteConfirmation}
+                      onChange={(e) => setDeleteConfirmation(e.target.value)}
+                      placeholder="DELETE"
+                      className="w-full px-4 py-3 bg-slate-900 border border-red-500/40 rounded-xl text-white focus:border-red-400 transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-red-200 mb-2">Current password</label>
+                    <input
+                      type="password"
+                      value={deletePassword}
+                      onChange={(e) => setDeletePassword(e.target.value)}
+                      placeholder="Enter your password"
+                      className="w-full px-4 py-3 bg-slate-900 border border-red-500/40 rounded-xl text-white focus:border-red-400 transition-colors"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleDeleteAccount}
+                    disabled={isDeleting}
+                    className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-500 transition-colors disabled:opacity-60"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>{isDeleting ? 'Deleting account...' : 'Delete my account'}</span>
+                  </button>
+                </div>
               </div>
             )}
 
@@ -382,13 +472,17 @@ export default function Settings() {
               ) : (
                 <div />
               )}
-              <button
-                onClick={handleSaveProfile}
-                disabled={isSaving}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift disabled:opacity-60"
-              >
-                {isSaving ? 'Saving...' : 'Save Changes'}
-              </button>
+              {canSaveProfileSettings ? (
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift disabled:opacity-60"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              ) : (
+                <div />
+              )}
             </div>
           </motion.div>
         </div>

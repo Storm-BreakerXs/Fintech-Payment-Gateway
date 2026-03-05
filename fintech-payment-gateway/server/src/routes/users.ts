@@ -1,8 +1,11 @@
 import express, { Response } from 'express'
+import bcrypt from 'bcryptjs'
 import { body, validationResult } from 'express-validator'
 import { authenticateToken } from '../middleware/auth'
 import { asyncHandler } from '../middleware/errorHandler'
+import { strictRateLimiter } from '../middleware/rateLimiter'
 import { logger } from '../utils/logger'
+import { PaymentMethod, Transaction, User } from '../utils/database'
 
 const router = express.Router()
 
@@ -101,6 +104,39 @@ router.patch('/me', authenticateToken, [
     message: 'Profile updated successfully.',
     user: formatUser(req.user)
   })
+}))
+
+// Delete current user account
+router.delete('/me', authenticateToken, strictRateLimiter, [
+  body('password').isLength({ min: 8 }),
+  body('confirmation').equals('DELETE'),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Invalid account deletion request. Provide your password and type DELETE to confirm.',
+      errors: errors.array(),
+    })
+  }
+
+  const password = String(req.body.password || '')
+  const isValidPassword = await bcrypt.compare(password, req.user.password)
+  if (!isValidPassword) {
+    return res.status(401).json({ error: 'Invalid password.' })
+  }
+
+  const userId = req.user._id
+  const userEmail = req.user.email
+
+  await Promise.all([
+    Transaction.deleteMany({ userId }),
+    PaymentMethod.deleteMany({ userId }),
+    User.findByIdAndDelete(userId),
+  ])
+
+  logger.warn(`User account deleted: ${userEmail}`)
+
+  res.json({ message: 'Your account has been permanently deleted.' })
 }))
 
 export default router
