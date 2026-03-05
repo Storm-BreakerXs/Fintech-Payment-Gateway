@@ -4,10 +4,18 @@ function trimTrailingSlash(url: string): string {
   return url.replace(/\/+$/, '')
 }
 
+function ensureApiSuffix(url: string): string {
+  const normalized = trimTrailingSlash(url)
+  if (/\/api$/i.test(normalized)) {
+    return normalized
+  }
+  return `${normalized}/api`
+}
+
 function resolveApiBaseUrl(): string {
   const configured = import.meta.env.VITE_API_URL?.trim()
   if (configured) {
-    return trimTrailingSlash(configured)
+    return ensureApiSuffix(configured)
   }
 
   if (import.meta.env.DEV) {
