@@ -8,7 +8,7 @@ import { User } from '../utils/database'
 import { strictRateLimiter } from '../middleware/rateLimiter'
 import { asyncHandler } from '../middleware/errorHandler'
 import { logger } from '../utils/logger'
-import { sendEmailVerificationOtp } from '../utils/email'
+import { sendEmailVerificationOtp, sendWelcomeEmail } from '../utils/email'
 
 const router = express.Router()
 
@@ -240,6 +240,12 @@ router.post('/verify-email', strictRateLimiter, [
   user.emailVerificationOtpExpiresAt = null
   user.emailVerificationAttempts = 0
   await user.save()
+
+  try {
+    await sendWelcomeEmail(user.email, user.firstName)
+  } catch (error: any) {
+    logger.error(`Failed to send welcome email for ${user.email}: ${error.message}`)
+  }
 
   const token = createToken(String(user._id))
   logger.info(`Email verified: ${user.email}`)
