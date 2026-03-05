@@ -23,21 +23,23 @@ const wss = new WebSocketServer({ server, path: '/ws' })
 const allowedOrigins = config.clientUrl
   .split(',')
   .map((origin) => origin.trim())
+  .map((origin) => origin.replace(/\/$/, ''))
   .filter(Boolean)
 
 function isDynamicAllowedOrigin(origin: string): boolean {
-  return /^https:\/\/[a-z0-9-]+\.netlify\.app$/i.test(origin)
-    || /^http:\/\/localhost:\d+$/i.test(origin)
+  return /^http:\/\/localhost:\d+$/i.test(origin)
+    || /^http:\/\/127\.0\.0\.1:\d+$/i.test(origin)
 }
 
 // Security middleware
 app.use(helmet())
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || isDynamicAllowedOrigin(origin)) {
+    const normalizedOrigin = origin?.replace(/\/$/, '')
+    if (!normalizedOrigin || allowedOrigins.includes(normalizedOrigin) || isDynamicAllowedOrigin(normalizedOrigin)) {
       return callback(null, true)
     }
-    logger.warn(`Blocked CORS origin: ${origin}`)
+    logger.warn(`Blocked CORS origin: ${normalizedOrigin}`)
     return callback(null, false)
   },
   credentials: true

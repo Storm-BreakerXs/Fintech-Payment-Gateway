@@ -1,75 +1,106 @@
-# Deployment Guide
+# Deployment Guide (cPanel + Render, No Netlify)
 
-## 1) Prepare production env vars
+## Architecture
 
-Create `.env` in project root from `.env.example` and set real values:
+- Frontend: `https://finpay.com.ng` and `https://www.finpay.com.ng` (served from cPanel `/public_html`)
+- Backend API: `https://api.finpay.com.ng` (served by Render web service)
 
-- `MONGODB_URI` (production MongoDB)
-- `REDIS_URL` (production Redis)
-- `JWT_SECRET` (long random secret)
-- `ENCRYPTION_KEY` (32+ chars)
-- `CLIENT_URL` (your frontend domain)
-- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` (live keys)
-- Email OTP provider:
-  - Primary: `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-  - Fallback (recommended): `RESEND_API_KEY`, `RESEND_FROM`
-  - `OTP_RESEND_COOLDOWN_SECONDS` (recommended: `60`)
+Do not point `finpay.com.ng` to Render if cPanel is hosting the website.
 
-Create `client/.env` from `client/.env.example`:
+## 1) Configure Render backend
 
-- `VITE_API_URL=https://your-api-domain/api`
+In Render service settings, set:
 
-## 2) Build and run with Docker
+- `NODE_ENV=production`
+- `PORT=10000` (or leave Render default)
+- `MONGODB_URI=<your production mongodb uri>`
+- `REDIS_URL=<your production redis url>`
+- `JWT_SECRET=<long random secret>`
+- `ENCRYPTION_KEY=<32+ character secret>`
+- `CLIENT_URL=https://finpay.com.ng,https://www.finpay.com.ng`
+- `STRIPE_SECRET_KEY=<live or test key>`
+- `STRIPE_WEBHOOK_SECRET=<stripe webhook secret>`
+- SMTP (cPanel mailbox):
+  - `SMTP_HOST=mail.finpay.com.ng`
+  - `SMTP_PORT=465`
+  - `SMTP_SECURE=true`
+  - `SMTP_USER=support@finpay.com.ng`
+  - `SMTP_PASS=<mailbox password>`
+  - `SMTP_FROM=FinPay Support <support@finpay.com.ng>`
+
+Optional fallback:
+
+- `RESEND_API_KEY=<optional>`
+- `RESEND_FROM=FinPay Support <support@finpay.com.ng>`
+
+## 2) Configure Render custom domain
+
+In Render custom domains for the API service:
+
+- Keep only `api.finpay.com.ng`
+- Remove `finpay.com.ng` and `www.finpay.com.ng` from Render
+
+## 3) Configure DNS at your registrar/cPanel
+
+Use your registrar DNS (not Netlify DNS):
+
+- `A` record: `@` -> your cPanel server IP
+- `CNAME` record: `www` -> `@` (or `finpay.com.ng`)
+- `CNAME` record: `api` -> `fintech-payment-gateway.onrender.com`
+
+Important:
+
+- Delete conflicting `A`/`AAAA` records for `api`.
+- Wait for DNS propagation, then click refresh/verify in Render.
+
+## 4) Build frontend for production
+
+In `client/.env` set:
+
+- `VITE_API_URL=https://api.finpay.com.ng/api`
+- `VITE_WALLETCONNECT_PROJECT_ID=<your walletconnect project id>`
+
+Build:
 
 ```bash
-docker compose -f docker-compose.prod.yml up --build -d
+cd client
+npm ci
+npm run build
 ```
 
-Services:
+## 5) Upload frontend to cPanel
 
-- Frontend: `http://<host>:80`
-- API: `http://<host>:3001`
-- MongoDB: `27017`
-- Redis: `6379`
+- Open cPanel File Manager
+- Go to `/public_html`
+- Remove old files if needed
+- Upload everything inside `client/dist/` to `/public_html`
+- Enable Force HTTPS redirect in cPanel Domains
 
-## 3) Configure HTTPS for live traffic
-
-`docker-compose.prod.yml` does not terminate TLS directly.
-Put a managed load balancer, Caddy, Traefik, or Nginx in front and route:
-
-- `https://your-domain` -> client `:80`
-- `https://api.your-domain` -> server `:3001`
-
-## 4) Configure Stripe webhook
+## 6) Configure Stripe webhook
 
 Set Stripe webhook endpoint to:
 
-- `https://api.your-domain/webhooks/stripe`
+- `https://api.finpay.com.ng/webhooks/stripe`
 
-Use the webhook signing secret from Stripe dashboard as `STRIPE_WEBHOOK_SECRET`.
+Use that webhook signing secret as `STRIPE_WEBHOOK_SECRET` in Render.
 
-## 5) Validate after deploy
+## 7) Validate end-to-end
 
-- `GET /health` returns `{"status":"ok"...}`
-- Register/login works
-- New user registration sends OTP to the email entered by that user
-- Payment route errors clearly if Stripe is not configured
-- CORS allows only your `CLIENT_URL`
+- Open `https://finpay.com.ng`
+- Check `https://api.finpay.com.ng/health` returns status JSON
+- Register a user and verify OTP email is delivered
+- Login and call authenticated endpoints
+- Ensure CORS errors are gone in browser console
 
-## 6) Data storage and retrieval
+## 8) Data storage and retrieval
 
 - User/account records are stored in MongoDB collection `users`.
-- OTP verification metadata (hashed OTP, expiry, resend cooldown timestamp) is stored per user in `users`.
+- OTP verification metadata is stored per user in `users`.
 - Payment records are stored in MongoDB collection `transactions`.
 - Payment methods are stored in MongoDB collection `paymentmethods`.
-- Frontend dashboard and history load from:
-  - `GET /api/payments/history`
-- Account settings load/save from:
-  - `GET /api/users/me`
-  - `PATCH /api/users/me`
 
 ## Important production gaps
 
 - `server/src/routes/auth.ts` still has mock KYC verification.
 - `server/src/routes/crypto.ts` still has mock swap quote logic.
-- `client/src/hooks/useWeb3.ts` has WalletConnect/Coinbase placeholders.
+- `client/src/hooks/useWeb3.ts` has WalletConnect/Coinbase placeholders for full production wallet UX.

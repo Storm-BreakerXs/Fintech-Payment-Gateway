@@ -45,7 +45,7 @@ export default function Footer() {
                 <Linkedin className="w-5 h-5" />
               </a>
               <a
-                href="mailto:support@finpay.gateway"
+                href="mailto:support@finpay.com.ng"
                 className="text-slate-400 hover:text-white transition-colors"
               >
                 <Mail className="w-5 h-5" />

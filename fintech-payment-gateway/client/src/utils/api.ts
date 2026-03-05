@@ -1,9 +1,34 @@
 import { clearAuthData, getAuthToken } from './auth'
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL
-  || (import.meta.env.DEV
-    ? 'http://localhost:3001/api'
-    : 'https://fintech-payment-gateway.onrender.com/api')
+function trimTrailingSlash(url: string): string {
+  return url.replace(/\/+$/, '')
+}
+
+function resolveApiBaseUrl(): string {
+  const configured = import.meta.env.VITE_API_URL?.trim()
+  if (configured) {
+    return trimTrailingSlash(configured)
+  }
+
+  if (import.meta.env.DEV) {
+    return 'http://localhost:3001/api'
+  }
+
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname.toLowerCase()
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3001/api'
+    }
+
+    if (hostname === 'finpay.com.ng' || hostname === 'www.finpay.com.ng') {
+      return 'https://api.finpay.com.ng/api'
+    }
+  }
+
+  return 'https://api.finpay.com.ng/api'
+}
+
+export const API_BASE_URL = resolveApiBaseUrl()
 
 function resolveErrorMessage(payload: any): string {
   if (payload?.error && typeof payload.error === 'string') return payload.error

@@ -251,7 +251,7 @@ export const sitePages: Record<string, SitePageContent> = {
       'Production teams should wire alerts to monitor latency, error rates, and downstream dependencies.',
     ],
     ctaLabel: 'Health Endpoint',
-    ctaHref: 'https://fintech-payment-gateway.onrender.com/health',
+    ctaHref: 'https://api.finpay.com.ng/health',
   },
   privacy: {
     slug: 'privacy',
