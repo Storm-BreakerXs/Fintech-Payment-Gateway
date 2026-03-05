@@ -26,9 +26,12 @@ const allowedOrigins = config.clientUrl
   .map((origin) => origin.replace(/\/$/, ''))
   .filter(Boolean)
 
+logger.info(`Configured CORS origins: ${allowedOrigins.join(', ') || '(none)'}`)
+
 function isDynamicAllowedOrigin(origin: string): boolean {
   return /^http:\/\/localhost:\d+$/i.test(origin)
     || /^http:\/\/127\.0\.0\.1:\d+$/i.test(origin)
+    || /^https:\/\/(?:[a-z0-9-]+\.)?finpay\.com\.ng$/i.test(origin)
 }
 
 // Security middleware
