@@ -11,6 +11,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import Card3D from '../components/Card3D'
+import { isAuthenticated } from '../utils/auth'
 
 const features = [
   {
@@ -43,6 +44,8 @@ const stats = [
 ]
 
 export default function Home() {
+  const authenticated = isAuthenticated()
+
   return (
     <div className="space-y-20 pb-20">
       {/* Hero Section */}
@@ -223,16 +226,19 @@ export default function Home() {
         >
           <div className="absolute inset-0 grid-bg opacity-30" />
           <div className="relative">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to Get Started?</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              {authenticated ? 'You Are Signed In' : 'Ready to Get Started?'}
+            </h2>
             <p className="text-slate-400 max-w-xl mx-auto mb-8">
-              Join thousands of businesses already using FinPay to power their payments.
-              Start accepting payments in minutes.
+              {authenticated
+                ? 'Open your dashboard to track transactions, balances, and account activity.'
+                : 'Join thousands of businesses already using FinPay to power their payments. Start accepting payments in minutes.'}
             </p>
             <Link
-              to="/auth?mode=register"
+              to={authenticated ? '/dashboard' : '/auth?mode=register'}
               className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
             >
-              <span>Create Free Account</span>
+              <span>{authenticated ? 'Open Dashboard' : 'Create Free Account'}</span>
               <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
