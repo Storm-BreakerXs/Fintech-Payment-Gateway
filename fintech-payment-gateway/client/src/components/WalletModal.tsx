@@ -25,14 +25,14 @@ const wallets: Array<{
   {
     id: 'walletconnect',
     name: 'WalletConnect',
-    description: 'Scan with WalletConnect',
+    description: 'Scan QR with Coinbase Wallet app (no browser extension)',
     icon: '🔗',
     color: 'from-blue-500 to-blue-600',
   },
   {
     id: 'coinbase',
     name: 'Coinbase Wallet',
-    description: 'Connect to Coinbase',
+    description: 'Use Coinbase extension or Coinbase deep-link flow',
     icon: 'C',
     color: 'from-blue-400 to-blue-500',
   },

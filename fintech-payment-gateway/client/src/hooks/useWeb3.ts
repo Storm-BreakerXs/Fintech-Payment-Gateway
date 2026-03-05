@@ -48,6 +48,7 @@ type CoinbaseWalletSDKCtor = (typeof import('@coinbase/wallet-sdk'))['default']
 
 let coinbaseWalletSdk: InstanceType<CoinbaseWalletSDKCtor> | null = null
 let coinbaseWalletProvider: CoinbaseWalletProvider | null = null
+let walletConnectProvider: any = null
 let activeExternalProvider: Eip1193Provider | null = null
 let activeAccountsChangedHandler: ((...args: unknown[]) => void) | null = null
 let activeChainChangedHandler: ((...args: unknown[]) => void) | null = null
@@ -112,6 +113,10 @@ function getCoinbaseRpcUrl(chainId: number): string {
   return DEFAULT_RPC_URLS[chainId] || DEFAULT_RPC_URLS[1]
 }
 
+function getWalletConnectProjectId(): string {
+  return import.meta.env.VITE_WALLETCONNECT_PROJECT_ID?.trim() || ''
+}
+
 function clearWalletStorage(): void {
   localStorage.removeItem(WALLET_ADDRESS_KEY)
   localStorage.removeItem(WALLET_TYPE_KEY)
@@ -161,13 +166,45 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
     try {
       detachProviderListeners()
 
-      if (walletType === 'walletconnect') {
-        throw new Error('WalletConnect integration coming soon.')
-      }
-
       let externalProvider: Eip1193Provider
 
-      if (walletType === 'metamask') {
+      if (walletType === 'walletconnect') {
+        const projectId = getWalletConnectProjectId()
+        if (!projectId) {
+          throw new Error('WalletConnect is not configured. Set VITE_WALLETCONNECT_PROJECT_ID in client/.env')
+        }
+
+        const defaultChainId = getDefaultCoinbaseChainId()
+        const appName = import.meta.env.VITE_COINBASE_APP_NAME?.trim() || 'FinPay'
+        const appLogoUrl = import.meta.env.VITE_COINBASE_APP_LOGO_URL?.trim() || ''
+        const optionalChains = SUPPORTED_CHAINS.filter((chainId) => chainId !== defaultChainId)
+        const rpcMap = Object.fromEntries(
+          SUPPORTED_CHAINS.map((chainId) => [chainId, getCoinbaseRpcUrl(chainId)])
+        )
+        const { EthereumProvider } = await import('@walletconnect/ethereum-provider')
+
+        if (!walletConnectProvider) {
+          walletConnectProvider = await EthereumProvider.init({
+            projectId,
+            chains: [defaultChainId],
+            optionalChains,
+            showQrModal: true,
+            rpcMap,
+            metadata: {
+              name: appName,
+              description: 'FinPay payment gateway wallet connection',
+              url: window.location.origin,
+              icons: appLogoUrl ? [appLogoUrl] : [],
+            },
+          })
+        }
+
+        if (!walletConnectProvider.session) {
+          await walletConnectProvider.connect()
+        }
+
+        externalProvider = walletConnectProvider as unknown as Eip1193Provider
+      } else if (walletType === 'metamask') {
         const injectedMetaMask = pickInjectedProvider('metamask')
         if (!injectedMetaMask) {
           throw new Error('MetaMask not installed. Please install MetaMask.')
@@ -260,6 +297,8 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
 
       if (walletType === 'coinbase') {
         toast.success('Coinbase Wallet connected successfully!')
+      } else if (walletType === 'walletconnect') {
+        toast.success('Wallet connected via WalletConnect!')
       } else {
         toast.success('MetaMask connected successfully!')
       }
@@ -271,12 +310,20 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
   },
 
   disconnect: () => {
+    const previousProvider = activeExternalProvider
+    const previousWalletType = activeWalletType
+
     clearWalletStorage()
     detachProviderListeners()
 
-    if (activeWalletType === 'coinbase' && activeExternalProvider === (coinbaseWalletProvider as unknown as Eip1193Provider | null)) {
+    if (previousWalletType === 'coinbase' && previousProvider === (coinbaseWalletProvider as unknown as Eip1193Provider | null)) {
       coinbaseWalletProvider?.disconnect()
       coinbaseWalletProvider = null
+    }
+
+    if (previousWalletType === 'walletconnect' && walletConnectProvider) {
+      void walletConnectProvider.disconnect().catch(() => {})
+      walletConnectProvider = null
     }
 
     activeWalletType = null
