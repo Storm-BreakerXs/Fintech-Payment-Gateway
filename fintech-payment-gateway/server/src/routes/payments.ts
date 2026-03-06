@@ -4,6 +4,7 @@ import { body, validationResult } from 'express-validator'
 import { config } from '../config/env'
 import { Transaction } from '../utils/database'
 import { authenticateToken, requireKyc } from '../middleware/auth'
+import { requireRecaptcha } from '../middleware/recaptcha'
 import { asyncHandler } from '../middleware/errorHandler'
 import { logger } from '../utils/logger'
 
@@ -13,7 +14,7 @@ const stripe = config.stripeSecretKey
   : null
 
 // Create Stripe Checkout session (public demo flow)
-router.post('/card/checkout', [
+router.post('/card/checkout', requireRecaptcha('card_checkout'), [
   body('amount').isFloat({ min: 0.01 }),
   body('currency').isIn(['USD', 'EUR', 'GBP']),
   body('merchantName').optional().trim()

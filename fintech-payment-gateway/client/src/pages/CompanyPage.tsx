@@ -1,29 +1,30 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Briefcase, Globe2, Newspaper, ShieldCheck } from 'lucide-react'
+import { visualAssets } from '../content/visualAssets'
 
 const values = [
   {
-    title: 'Operational Clarity',
-    description: 'We design systems that payments, compliance, and finance teams can run confidently.',
+    title: 'Clarity for Teams',
+    description: 'We design payment experiences that finance, compliance, and support teams can run with confidence.',
     icon: Globe2,
   },
   {
-    title: 'Trust and Security',
-    description: 'Every product decision must preserve user trust, control, and resilience.',
+    title: 'Trust by Default',
+    description: 'Every product decision is built to protect customer trust, control, and resilience.',
     icon: ShieldCheck,
   },
   {
-    title: 'Execution Velocity',
-    description: 'We optimize for clear ownership and measurable outcomes, not process theater.',
+    title: 'Fast Execution',
+    description: 'We focus on clear ownership and measurable results so teams can launch quickly.',
     icon: Briefcase,
   },
 ]
 
 const milestones = [
-  'Unified card + crypto gateway foundation',
-  'Cross-border payout and treasury orchestration',
-  'Developer documentation and event model rollout',
-  'Enterprise corridor expansion playbooks',
+  'Card and crypto checkout launched',
+  'Cross-border payouts and treasury tools expanded',
+  'Developer docs and webhook workflows released',
+  'Enterprise support across key corridors',
 ]
 
 export default function CompanyPage() {
@@ -31,32 +32,57 @@ export default function CompanyPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 space-y-8">
       <section className="relative overflow-hidden rounded-3xl border border-blue-300/35 bg-gradient-to-br from-blue-500/14 via-indigo-500/10 to-slate-900/45 p-6 sm:p-10">
         <div className="absolute inset-0 grid-bg opacity-25" />
-        <div className="relative space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-300/40 bg-blue-400/15 text-blue-100 text-xs uppercase tracking-[0.2em]">
-            <Newspaper className="w-3.5 h-3.5" />
-            <span>Company</span>
+        <div className="relative grid lg:grid-cols-[1.1fr,0.9fr] gap-8 items-start">
+          <div className="space-y-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-blue-300/40 bg-blue-400/15 text-blue-100 text-xs uppercase tracking-[0.2em]">
+              <Newspaper className="w-3.5 h-3.5" />
+              <span>Company</span>
+            </div>
+            <h1 className="text-3xl sm:text-5xl text-white leading-tight max-w-4xl">
+              Building practical payment infrastructure for global operators.
+            </h1>
+            <p className="text-slate-200/90 text-base sm:text-lg max-w-3xl">
+              FinPay focuses on real operating outcomes: faster settlement, lower friction, and stronger visibility across
+              collections, treasury, and payouts.
+            </p>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <div className="home-surface rounded-xl border border-slate-500/30 p-3">
+                <p className="text-xs text-blue-100 uppercase tracking-[0.18em]">Focus</p>
+                <p className="text-white font-semibold mt-1">Global payments</p>
+              </div>
+              <div className="home-surface rounded-xl border border-slate-500/30 p-3">
+                <p className="text-xs text-blue-100 uppercase tracking-[0.18em]">Priority</p>
+                <p className="text-white font-semibold mt-1">Customer trust</p>
+              </div>
+              <div className="home-surface rounded-xl border border-slate-500/30 p-3">
+                <p className="text-xs text-blue-100 uppercase tracking-[0.18em]">Approach</p>
+                <p className="text-white font-semibold mt-1">Reliable execution</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                to="/contact-sales"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-300 to-cyan-300 text-slate-950 font-semibold"
+              >
+                <span>Talk to Us</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/careers"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-500/50 bg-slate-900/35 text-slate-100 font-semibold"
+              >
+                <span>See Careers</span>
+              </Link>
+            </div>
           </div>
-          <h1 className="text-3xl sm:text-5xl text-white leading-tight max-w-4xl">
-            Building practical payment infrastructure for global operators.
-          </h1>
-          <p className="text-slate-200/90 text-base sm:text-lg max-w-3xl">
-            FinPay focuses on real operating outcomes: faster settlement, lower friction, and stronger visibility across
-            collections, treasury, and payouts.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Link
-              to="/contact-sales"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-blue-300 to-cyan-300 text-slate-950 font-semibold"
-            >
-              <span>Talk to Us</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link
-              to="/careers"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-500/50 bg-slate-900/35 text-slate-100 font-semibold"
-            >
-              <span>See Careers</span>
-            </Link>
+
+          <div className="home-surface rounded-2xl border border-slate-500/30 overflow-hidden">
+            <img
+              src={visualAssets.crossBorderTeam.src}
+              alt={visualAssets.crossBorderTeam.alt}
+              className="h-full min-h-[280px] w-full object-cover"
+              loading="lazy"
+            />
           </div>
         </div>
       </section>

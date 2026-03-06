@@ -103,6 +103,14 @@ textarea:focus-visible {
   -webkit-backdrop-filter: blur(18px);
 }
 
+.home-surface {
+  background:
+    linear-gradient(160deg, rgba(17, 28, 52, 0.86), rgba(9, 17, 34, 0.86)),
+    radial-gradient(circle at 18% 0%, rgba(45, 212, 191, 0.12), transparent 34%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
 .gradient-text {
   background: linear-gradient(118deg, var(--brand-cyan) 0%, #75f0ff 36%, var(--brand-blue) 68%, var(--brand-amber) 100%);
   -webkit-background-clip: text;
@@ -140,15 +148,10 @@ textarea:focus-visible {
 }
 
 .ticker {
-  animation: ticker 38s linear infinite;
+  animation: ticker var(--ticker-duration, 38s) linear infinite;
+  will-change: transform;
 }
 
-.ticker:hover {
+.ticker-paused {
   animation-play-state: paused;
-}
-
-@media (max-width: 768px) {
-  .ticker {
-    animation-duration: 28s;
-  }
 }

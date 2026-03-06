@@ -17,6 +17,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import toast from 'react-hot-toast'
 import { useWeb3Store } from '../hooks/useWeb3'
 import { API_BASE_URL } from '../utils/api'
+import { executeRecaptcha } from '../utils/recaptcha'
 import { visualAssets } from '../content/visualAssets'
 
 type PaymentMethod = 'card' | 'crypto'
@@ -136,6 +137,7 @@ export default function Payment() {
     if (paymentMethod === 'card') {
       try {
         setProcessingMessage('Redirecting to secure Stripe checkout...')
+        const captchaToken = await executeRecaptcha('card_checkout')
 
         const response = await fetch(`${API_BASE_URL}/payments/card/checkout`, {
           method: 'POST',
@@ -148,6 +150,7 @@ export default function Payment() {
             merchantName,
             customerEmail,
             reference,
+            ...(captchaToken ? { captchaToken } : {}),
           }),
         })
 
@@ -202,13 +205,13 @@ export default function Payment() {
     ? visualAssets.paymentSuccess
     : step === 'failed'
       ? visualAssets.paymentFailure
-      : visualAssets.heroCheckout
+      : visualAssets.paymentOperations
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-10 text-center">
         <h1 className="text-4xl sm:text-5xl font-bold text-white">Payment Checkout</h1>
-        <p className="mt-3 text-slate-300">Reliable payment UX with secure processor handoff and explicit status states.</p>
+        <p className="mt-3 text-slate-300">Pay securely with card or crypto and track your payment status instantly.</p>
       </div>
 
       <div className="grid lg:grid-cols-[1.05fr,0.95fr] gap-10">
@@ -562,10 +565,10 @@ export default function Payment() {
           <div className="rounded-3xl border border-slate-700/80 bg-slate-900/60 overflow-hidden">
             <img src={statusImage.src} alt={statusImage.alt} className="h-64 w-full object-cover" loading="lazy" />
             <div className="p-5">
-              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Checkout Feel</p>
-              <h3 className="text-lg font-semibold text-white mt-2">Clear trust cues at every step</h3>
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Customer Confidence</p>
+              <h3 className="text-lg font-semibold text-white mt-2">A secure experience from start to finish</h3>
               <p className="text-sm text-slate-300 mt-2">
-                The redesigned flow emphasizes secure processor handoff, explicit transaction states, and reduced user confusion.
+                Every step is designed to keep payment details safe and keep customers informed.
               </p>
             </div>
           </div>
@@ -586,7 +589,7 @@ export default function Payment() {
               </li>
               <li className="inline-flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 text-cyan-300" />
-                Retry-safe navigation back to transaction history and checkout.
+                Easy retry options if a payment is interrupted.
               </li>
             </ul>
           </div>
@@ -594,7 +597,7 @@ export default function Payment() {
           {step !== 'processing' && (
             <div className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-5 text-sm text-slate-300 inline-flex items-start gap-2">
               <RefreshCw className="w-4 h-4 mt-0.5 text-cyan-300" />
-              Card flow redirects to external processor, then returns to this page with completion status.
+              Card payments open a secure Stripe page and return here with your payment result.
             </div>
           )}
         </aside>

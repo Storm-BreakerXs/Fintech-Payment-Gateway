@@ -17,6 +17,8 @@ import paymentRoutes from './routes/payments'
 import cryptoRoutes from './routes/crypto'
 import webhookRoutes from './routes/webhooks'
 import userRoutes from './routes/users'
+import adminRoutes from './routes/admin'
+import devRoutes from './routes/dev'
 
 const app = express()
 const server = createServer(app)
@@ -93,9 +95,15 @@ app.get('/', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
+app.use('/api/admin', adminRoutes)
 app.use('/api/payments', paymentRoutes)
 app.use('/api/crypto', cryptoRoutes)
 app.use('/webhooks', webhookRoutes)
+
+if (!config.isProduction) {
+  app.use('/api/dev', devRoutes)
+  logger.info('Development preview routes enabled at /api/dev')
+}
 
 // WebSocket handling
 wss.on('connection', (ws) => {

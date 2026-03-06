@@ -68,6 +68,18 @@ function getPositiveInt(value: string | undefined, fallback: number, name: strin
   return parsed
 }
 
+function getUnitIntervalNumber(value: string | undefined, fallback: number, name: string): number {
+  if (!value) {
+    return fallback
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`Invalid ${name} "${value}". Expected a number between 0 and 1.`)
+  }
+  return parsed
+}
+
 function normalizeSecret(value: string | undefined): string {
   return (value || '').replace(/\s+/g, '').trim()
 }
@@ -78,6 +90,21 @@ function normalizeSender(value: string | undefined): string {
     .replace(/^"(.*)"$/, '$1')
     .replace(/^'(.*)'$/, '$1')
     .trim()
+}
+
+function parseEmailList(value: string | undefined): string[] {
+  if (!value) {
+    return []
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .split(',')
+        .map((entry) => entry.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  )
 }
 
 const nodeEnv = getNodeEnv(process.env.NODE_ENV)
@@ -93,12 +120,16 @@ if (encryptionKey.length < 32) {
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() || ''
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() || ''
 const redisUrl = process.env.REDIS_URL?.trim() || ''
+const recaptchaSecretKey = process.env.RECAPTCHA_SECRET_KEY?.trim() || ''
+const recaptchaEnabled = (process.env.RECAPTCHA_ENABLED?.trim() || (recaptchaSecretKey ? 'true' : 'false')).toLowerCase() === 'true'
+const recaptchaMinScore = getUnitIntervalNumber(process.env.RECAPTCHA_MIN_SCORE?.trim(), 0.5, 'RECAPTCHA_MIN_SCORE')
 const smtpHost = process.env.SMTP_HOST?.trim() || ''
 const smtpPort = getOptionalPort(process.env.SMTP_PORT?.trim(), 587)
 const smtpSecure = (process.env.SMTP_SECURE?.trim() || 'false').toLowerCase() === 'true'
 const smtpUser = process.env.SMTP_USER?.trim() || ''
 const smtpPass = normalizeSecret(process.env.SMTP_PASS)
 const smtpFrom = normalizeSender(process.env.SMTP_FROM)
+const adminEmails = parseEmailList(process.env.ADMIN_EMAILS)
 const emailOtpTtlMinutes = getPositiveInt(process.env.EMAIL_OTP_TTL_MINUTES?.trim(), 10, 'EMAIL_OTP_TTL_MINUTES')
 const otpResendCooldownSeconds = getPositiveInt(
   process.env.OTP_RESEND_COOLDOWN_SECONDS?.trim(),
@@ -146,6 +177,10 @@ if (isProduction && !redisUrl) {
   throw new Error('REDIS_URL is required in production.')
 }
 
+if (recaptchaEnabled && !recaptchaSecretKey) {
+  throw new Error('RECAPTCHA_SECRET_KEY is required when RECAPTCHA_ENABLED=true.')
+}
+
 export const config = {
   nodeEnv,
   isProduction,
@@ -153,6 +188,9 @@ export const config = {
   clientUrl: (process.env.CLIENT_URL || 'http://localhost:5173').trim(),
   mongodbUri: requireEnv('MONGODB_URI'),
   redisUrl,
+  recaptchaEnabled,
+  recaptchaSecretKey,
+  recaptchaMinScore,
   jwtSecret,
   encryptionKey,
   stripeSecretKey,
@@ -163,6 +201,7 @@ export const config = {
   smtpUser,
   smtpPass,
   smtpFrom,
+  adminEmails,
   emailOtpTtlMinutes,
   otpResendCooldownSeconds,
   resendApiKey,

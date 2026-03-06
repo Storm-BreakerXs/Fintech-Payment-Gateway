@@ -3,6 +3,7 @@ export interface AuthUser {
   email: string
   firstName: string
   lastName: string
+  role?: 'user' | 'admin'
   phone?: string
   preferredCurrency?: 'USD' | 'EUR' | 'GBP'
   timezone?: string

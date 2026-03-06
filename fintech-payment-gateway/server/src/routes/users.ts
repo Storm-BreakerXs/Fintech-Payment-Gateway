@@ -5,11 +5,36 @@ import { config } from '../config/env'
 import { authenticateToken } from '../middleware/auth'
 import { asyncHandler } from '../middleware/errorHandler'
 import { strictRateLimiter } from '../middleware/rateLimiter'
+import { requireRecaptcha } from '../middleware/recaptcha'
 import { forwardSalesLeadToCrm } from '../services/crmProvider'
-import { sendAccountDeletionScheduledEmail, sendSalesInquiryEmail } from '../utils/email'
+import { Session } from '../utils/database'
+import {
+  sendAccountDeletionCanceledEmail,
+  sendAccountDeletionScheduledEmail,
+  sendSalesInquiryAcknowledgementEmail,
+  sendSalesInquiryEmail,
+} from '../utils/email'
 import { logger } from '../utils/logger'
 
 const router = express.Router()
+
+function getPrimaryClientUrl(): string {
+  const candidates = config.clientUrl
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+  const preferred = candidates.find((entry) => {
+    try {
+      const hostname = new URL(entry).hostname.toLowerCase()
+      return !hostname.endsWith('.netlify.app') && !hostname.endsWith('.netlify.com')
+    } catch {
+      return !/netlify/i.test(entry)
+    }
+  })
+
+  return preferred || 'http://localhost:5173'
+}
 
 function formatUser(user: any) {
   return {
@@ -17,6 +42,7 @@ function formatUser(user: any) {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    role: user.role || 'user',
     phone: user.phone || '',
     preferredCurrency: user.preferredCurrency || 'USD',
     timezone: user.timezone || 'UTC',
@@ -120,8 +146,9 @@ async function scheduleAccountDeletion(req: any, res: Response): Promise<void> {
 
   if (req.user.accountDeletionScheduledFor) {
     res.json({
-      message: 'Account deletion is already scheduled.',
+      message: `Account deletion is already scheduled. You will be signed out now. Sign back in within ${config.accountDeletionGraceHours} hour(s) to cancel automatically.`,
       scheduledFor: req.user.accountDeletionScheduledFor,
+      shouldSignOut: true,
     })
     return
   }
@@ -133,12 +160,15 @@ async function scheduleAccountDeletion(req: any, res: Response): Promise<void> {
   req.user.accountDeletionScheduledFor = scheduledFor
   req.user.accountDeletionTokenHash = null
   await req.user.save()
+  await Session.updateMany({ userId: req.user._id, revokedAt: null }, { $set: { revokedAt: new Date() } })
 
   try {
+    const loginLink = `${getPrimaryClientUrl().replace(/\/$/, '')}/auth?mode=login`
     await sendAccountDeletionScheduledEmail(
       req.user.email,
       req.user.firstName,
-      scheduledFor
+      scheduledFor,
+      loginLink
     )
   } catch (error: any) {
     logger.error(`Failed to send deletion schedule email for ${req.user.email}: ${error.message}`)
@@ -146,8 +176,9 @@ async function scheduleAccountDeletion(req: any, res: Response): Promise<void> {
 
   logger.warn(`Account deletion scheduled for ${req.user.email} at ${scheduledFor.toISOString()}`)
   res.json({
-    message: `Account deletion scheduled. You can cancel any time in the next ${config.accountDeletionGraceHours} hour(s).`,
+    message: `Account deletion scheduled and you have been signed out. If you sign back in within ${config.accountDeletionGraceHours} hour(s), deletion will be canceled automatically.`,
     scheduledFor,
+    shouldSignOut: true,
   })
 }
 
@@ -210,11 +241,17 @@ router.post('/cancel-delete-account', authenticateToken, strictRateLimiter, [
   req.user.accountDeletionTokenHash = null
   await req.user.save()
 
+  try {
+    await sendAccountDeletionCanceledEmail(req.user.email, req.user.firstName, 'manual')
+  } catch (error: any) {
+    logger.error(`Failed to send deletion cancellation email for ${req.user.email}: ${error.message}`)
+  }
+
   logger.info(`Account deletion canceled for ${req.user.email}`)
   res.json({ message: 'Scheduled account deletion has been canceled.' })
 }))
 
-router.post('/contact-sales', strictRateLimiter, [
+router.post('/contact-sales', strictRateLimiter, requireRecaptcha('contact_sales'), [
   body('fullName').trim().isLength({ min: 2, max: 120 }),
   body('workEmail').isEmail().normalizeEmail(),
   body('companyName').trim().isLength({ min: 2, max: 160 }),
@@ -252,6 +289,12 @@ router.post('/contact-sales', strictRateLimiter, [
     await sendSalesInquiryEmail(payload)
   } catch (error: any) {
     logger.error(`Failed to deliver contact-sales request for ${payload.workEmail}: ${error.message}`)
+  }
+
+  try {
+    await sendSalesInquiryAcknowledgementEmail(payload)
+  } catch (error: any) {
+    logger.error(`Failed to send contact-sales acknowledgement for ${payload.workEmail}: ${error.message}`)
   }
 
   try {

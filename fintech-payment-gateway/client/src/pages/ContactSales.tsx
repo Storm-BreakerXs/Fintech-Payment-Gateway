@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { MessageSquare, Send, Sparkles, UserRound, Building2, Globe2, Mail, PhoneCall } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiRequest } from '../utils/api'
+import { executeRecaptcha, isRecaptchaEnabled } from '../utils/recaptcha'
+import { visualAssets } from '../content/visualAssets'
 
 interface ChatMessage {
   role: 'assistant' | 'user'
@@ -11,7 +13,7 @@ interface ChatMessage {
 const initialMessages: ChatMessage[] = [
   {
     role: 'assistant',
-    text: 'Hi. I am FinPay Sales Assist. Tell me what you are trying to launch and I will guide your next step.',
+    text: 'Hi, I am the FinPay Sales Assistant. Tell me what you want to launch and I will guide your next step.',
   },
 ]
 
@@ -40,7 +42,7 @@ interface SalesForm {
 function generateAssistantReply(input: string): string {
   const lower = input.toLowerCase()
   if (lower.includes('api') || lower.includes('developer')) {
-    return 'For API onboarding, we usually start with checkout, then webhooks, then payout rules per corridor. Submit the form and request a technical discovery call.'
+    return 'For API onboarding, we usually start with checkout, then webhooks, then payout setup by region. Submit the form to book an integration call.'
   }
   if (lower.includes('compliance') || lower.includes('kyc') || lower.includes('aml')) {
     return 'For compliance-heavy flows, our team will map KYC states, transaction limits, and reporting requirements before go-live.'
@@ -51,7 +53,7 @@ function generateAssistantReply(input: string): string {
   if (lower.includes('remittance') || lower.includes('payroll') || lower.includes('payout')) {
     return 'For payout programs, we design routing and retry logic first, then settlement and treasury rules by region.'
   }
-  return 'Understood. Add your use case and monthly volume in the form. Sales can then schedule the right solution architect for your call.'
+  return 'Understood. Add your use case and monthly volume in the form, and we will connect you with the right specialist.'
 }
 
 export default function ContactSales() {
@@ -68,6 +70,7 @@ export default function ContactSales() {
     preferredContact: contactOptions[0],
     message: '',
   })
+  const recaptchaEnabled = isRecaptchaEnabled()
 
   const completion = useMemo(() => {
     const fields = [form.fullName, form.workEmail, form.companyName, form.role, form.country, form.message]
@@ -92,11 +95,13 @@ export default function ContactSales() {
     setSubmitting(true)
 
     try {
+      const captchaToken = await executeRecaptcha('contact_sales')
       const data = await apiRequest<{ message: string }>('/users/contact-sales', {
         method: 'POST',
         body: JSON.stringify({
           ...form,
           sourcePath: window.location.pathname,
+          ...(captchaToken ? { captchaToken } : {}),
         }),
       })
 
@@ -131,8 +136,7 @@ export default function ContactSales() {
             </div>
             <h1 className="text-3xl sm:text-5xl text-white leading-tight">Talk to Sales and Launch Faster.</h1>
             <p className="text-slate-200/90 text-base sm:text-lg max-w-2xl">
-              Submit your requirements or chat with the FinPay assistant. We will connect you with the right sales and
-              solution team for your integration.
+              Submit your requirements or chat with the FinPay assistant. We will connect you with the right team for your goals.
             </p>
             <div className="grid sm:grid-cols-3 gap-3">
               <div className="home-surface rounded-xl border border-slate-500/30 p-3">
@@ -144,7 +148,7 @@ export default function ContactSales() {
                 <p className="text-white font-semibold mt-1">30-45 minutes</p>
               </div>
               <div className="home-surface rounded-xl border border-slate-500/30 p-3">
-                <p className="text-xs text-cyan-100 uppercase tracking-[0.18em]">Implementation Plan</p>
+                <p className="text-xs text-cyan-100 uppercase tracking-[0.18em]">Launch Plan</p>
                 <p className="text-white font-semibold mt-1">Custom by region</p>
               </div>
             </div>
@@ -262,9 +266,19 @@ export default function ContactSales() {
             <Send className="w-4 h-4" />
             <span>{submitting ? 'Submitting...' : 'Submit Sales Request'}</span>
           </button>
+
+          {recaptchaEnabled && (
+            <p className="text-xs text-slate-400">Protected by reCAPTCHA.</p>
+          )}
         </form>
 
         <div className="home-surface rounded-3xl border border-slate-500/30 p-6 sm:p-8 flex flex-col">
+          <img
+            src={visualAssets.salesConversation.src}
+            alt={visualAssets.salesConversation.alt}
+            className="h-36 w-full rounded-2xl object-cover border border-slate-500/25 mb-4"
+            loading="lazy"
+          />
           <h2 className="text-2xl text-white flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-cyan-200" />
             FinPay Sales Assistant

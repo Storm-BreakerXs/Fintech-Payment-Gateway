@@ -37,7 +37,7 @@ function resolveApiBaseUrl(): string {
       return 'https://api.finpay.com.ng/api'
     }
 
-    if (hostname.endsWith('.netlify.app') || hostname.endsWith('.onrender.com')) {
+    if (hostname.endsWith('.onrender.com')) {
       return 'https://fintech-payment-gateway.onrender.com/api'
     }
   }

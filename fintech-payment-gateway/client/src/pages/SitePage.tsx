@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { ArrowRight, CheckCircle, Globe, Shield, Zap } from 'lucide-react'
 import { footerLinkGroups, sitePages, type SitePageContent } from '../content/sitePages'
+import { visualAssets } from '../content/visualAssets'
 
 const slugAliases: Record<string, string> = {
   products: 'features',
@@ -42,6 +43,13 @@ const sectionStyles: Record<string, { bg: string; border: string; badge: string 
   },
 }
 
+const sectionVisuals: Record<string, { src: string; alt: string }> = {
+  Product: visualAssets.siteProductBrief,
+  Company: visualAssets.siteCompanyBrief,
+  Resources: visualAssets.siteResourcesBrief,
+  Legal: visualAssets.siteLegalBrief,
+}
+
 function humanizeSlug(slug: string): string {
   return slug
     .replace(/[-_/]+/g, ' ')
@@ -60,16 +68,16 @@ function buildFallbackPage(slug: string, pathname: string): SitePageContent {
     slug,
     section: 'Resources',
     title,
-    subtitle: 'This route is now active and ready for rich content.',
+    subtitle: 'This page is live and ready with helpful information.',
     highlights: [
-      `Route resolved successfully for "${pathname}".`,
-      'You can map this page to product, company, resource, or legal content.',
-      'Navigation now supports dynamic fallback for newly added links.',
-      'Use this route for launch content, campaigns, or SEO pages.',
+      `You are viewing ${title} on FinPay.`,
+      'Explore product, company, resources, and legal pages from one place.',
+      'Use the navigation below to discover related topics.',
+      'Contact our team if you need help finding the right solution.',
     ],
     details: [
-      'The previous one-level slug limitation has been removed so deeper internal links can still resolve to a live page experience.',
-      'To make this page fully custom, add a slug entry in sitePages and it will automatically render with complete styling and related links.',
+      'This page is part of the FinPay website and can be updated with new content anytime.',
+      `Current path: ${pathname}`,
     ],
     ctaLabel: 'Go To Home',
     ctaHref: '/',
@@ -94,11 +102,12 @@ export default function SitePage() {
   const page = sitePages[resolvedSlug] || buildFallbackPage(resolvedSlug, pathname)
   const sectionTheme = sectionStyles[page.section] || sectionStyles.Default
   const sectionLinks = getSectionLinks(page.section)
+  const sectionVisual = sectionVisuals[page.section] || visualAssets.siteResourcesBrief
   const relatedPages = Object.values(sitePages)
     .filter((item) => item.section === page.section && item.slug !== page.slug)
     .slice(0, 4)
 
-  const ctaLabel = page.ctaLabel || 'Start Building'
+  const ctaLabel = page.ctaLabel || 'Get Started'
   const ctaHref = page.ctaHref || '/auth?mode=register'
 
   return (
@@ -144,20 +153,28 @@ export default function SitePage() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
+            <div className="home-surface rounded-2xl border border-slate-500/30 overflow-hidden sm:col-span-2">
+              <img
+                src={sectionVisual.src}
+                alt={sectionVisual.alt}
+                className="h-40 w-full object-cover"
+                loading="lazy"
+              />
+            </div>
             <div className="home-surface rounded-2xl border border-slate-500/30 p-4">
               <p className="text-xs text-cyan-100 uppercase tracking-[0.2em] mb-2">Highlights</p>
               <p className="text-3xl text-white font-bold">{page.highlights.length}</p>
-              <p className="text-sm text-slate-300 mt-2">Execution points available on this page.</p>
+              <p className="text-sm text-slate-300 mt-2">Key points on this page.</p>
             </div>
             <div className="home-surface rounded-2xl border border-slate-500/30 p-4">
               <p className="text-xs text-emerald-100 uppercase tracking-[0.2em] mb-2">Depth</p>
               <p className="text-3xl text-white font-bold">{page.details.length}</p>
-              <p className="text-sm text-slate-300 mt-2">Operational notes and guidance blocks.</p>
+              <p className="text-sm text-slate-300 mt-2">Helpful details and guidance.</p>
             </div>
             <div className="home-surface rounded-2xl border border-slate-500/30 p-4 sm:col-span-2">
               <p className="text-xs text-amber-100 uppercase tracking-[0.2em] mb-2">Route</p>
               <p className="text-white text-sm break-all">{pathname}</p>
-              <p className="text-xs text-slate-400 mt-2">All internal links now resolve through wildcard routing.</p>
+              <p className="text-xs text-slate-400 mt-2">Use this URL to return to this page anytime.</p>
             </div>
           </div>
         </div>
@@ -181,7 +198,7 @@ export default function SitePage() {
         </div>
 
         <div className="home-surface rounded-3xl border border-slate-500/30 p-6 sm:p-8">
-          <h2 className="text-2xl text-white mb-5">Execution Notes</h2>
+          <h2 className="text-2xl text-white mb-5">More Details</h2>
           <div className="space-y-4">
             {page.details.map((paragraph) => (
               <div key={paragraph} className="rounded-2xl border border-slate-500/25 bg-slate-950/35 p-4">
@@ -236,7 +253,7 @@ export default function SitePage() {
               ))
             ) : (
               <div className="sm:col-span-2 rounded-2xl border border-slate-500/25 bg-slate-950/35 p-4 text-slate-300">
-                Add more entries under this section in `sitePages` to auto-populate this panel.
+                More pages in this section will appear here soon.
               </div>
             )}
           </div>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, BookOpen, Code2, Cpu, FileJson2, Webhook } from 'lucide-react'
+import { visualAssets } from '../content/visualAssets'
 
 const snippets = `POST /api/payments/card/checkout
 {
@@ -41,11 +42,10 @@ export default function DevelopersPage() {
               <span>Developers</span>
             </div>
             <h1 className="text-3xl sm:text-5xl text-white leading-tight">
-              Developer flows designed for fast production rollouts.
+              Build with FinPay and go live quickly.
             </h1>
             <p className="text-slate-200/90 text-base sm:text-lg max-w-3xl">
-              Build with typed routes, webhook-led event handling, and modular integration steps that match real payment
-              operations.
+              Use clear API guides, webhook events, and modular setup steps for your payment flow.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
@@ -59,16 +59,26 @@ export default function DevelopersPage() {
                 to="/contact-sales"
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-slate-500/50 bg-slate-900/35 text-slate-100 font-semibold"
               >
-                <span>Request Technical Call</span>
+                <span>Book Integration Call</span>
               </Link>
             </div>
           </div>
 
-          <div className="home-surface rounded-2xl border border-slate-500/30 p-5">
-            <p className="text-xs uppercase tracking-[0.2em] text-emerald-100 mb-2">Quickstart Sample</p>
-            <pre className="text-xs sm:text-sm text-cyan-100 bg-slate-950/70 border border-slate-500/30 rounded-xl p-4 overflow-x-auto">
+          <div className="space-y-3">
+            <div className="home-surface rounded-2xl border border-slate-500/30 overflow-hidden">
+              <img
+                src={visualAssets.developerWorkspace.src}
+                alt={visualAssets.developerWorkspace.alt}
+                className="h-44 w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+            <div className="home-surface rounded-2xl border border-slate-500/30 p-5">
+              <p className="text-xs uppercase tracking-[0.2em] text-emerald-100 mb-2">Quickstart Sample</p>
+              <pre className="text-xs sm:text-sm text-cyan-100 bg-slate-950/70 border border-slate-500/30 rounded-xl p-4 overflow-x-auto">
 {snippets}
-            </pre>
+              </pre>
+            </div>
           </div>
         </div>
       </section>
@@ -100,7 +110,7 @@ export default function DevelopersPage() {
         <ul className="grid sm:grid-cols-2 gap-3 text-sm text-slate-200">
           <li>Validate idempotency and retry behavior for payment creation calls.</li>
           <li>Verify webhook signatures and enforce replay-protection policies.</li>
-          <li>Map transaction states to your internal operations dashboard.</li>
+          <li>Map transaction states to your customer dashboard.</li>
           <li>Define alerting for failed payments, queue lag, and provider errors.</li>
         </ul>
       </section>

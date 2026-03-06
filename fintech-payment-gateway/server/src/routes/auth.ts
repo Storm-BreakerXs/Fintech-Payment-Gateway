@@ -8,10 +8,13 @@ import { body, validationResult } from 'express-validator'
 import { config } from '../config/env'
 import { Session, User } from '../utils/database'
 import { strictRateLimiter } from '../middleware/rateLimiter'
+import { requireRecaptcha } from '../middleware/recaptcha'
 import { asyncHandler } from '../middleware/errorHandler'
 import { logger } from '../utils/logger'
 import {
+  sendAccountDeletionCanceledEmail,
   sendEmailVerificationOtp,
+  sendPasswordChangedConfirmationEmail,
   sendPasswordResetEmail,
   sendWelcomeEmail,
 } from '../utils/email'
@@ -52,6 +55,7 @@ function formatUser(user: any) {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    role: user.role || 'user',
     phone: user.phone || '',
     preferredCurrency: user.preferredCurrency || 'USD',
     timezone: user.timezone || 'UTC',
@@ -71,8 +75,30 @@ function formatUser(user: any) {
   }
 }
 
+async function syncAdminRole(user: any): Promise<void> {
+  const normalizedEmail = String(user.email || '').toLowerCase()
+  if (config.adminEmails.includes(normalizedEmail) && user.role !== 'admin') {
+    user.role = 'admin'
+    await user.save()
+  }
+}
+
 function getPrimaryClientUrl(): string {
-  return config.clientUrl.split(',')[0]?.trim() || 'http://localhost:5173'
+  const candidates = config.clientUrl
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+  const preferred = candidates.find((entry) => {
+    try {
+      const hostname = new URL(entry).hostname.toLowerCase()
+      return !hostname.endsWith('.netlify.app') && !hostname.endsWith('.netlify.com')
+    } catch {
+      return !/netlify/i.test(entry)
+    }
+  })
+
+  return preferred || 'http://localhost:5173'
 }
 
 function normalizeRecoveryCode(value: string): string {
@@ -135,7 +161,7 @@ async function verifyTwoFactor(user: any, twoFactorCode?: string, recoveryCode?:
 }
 
 // Register
-router.post('/register', strictRateLimiter, [
+router.post('/register', strictRateLimiter, requireRecaptcha('register'), [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 8 }),
   body('firstName').trim().notEmpty(),
@@ -214,7 +240,7 @@ router.post('/register', strictRateLimiter, [
 }))
 
 // Login
-router.post('/login', strictRateLimiter, [
+router.post('/login', strictRateLimiter, requireRecaptcha('login'), [
   body('email').isEmail().normalizeEmail(),
   body('password').notEmpty(),
   body('twoFactorCode').optional().isLength({ min: 6, max: 6 }),
@@ -258,19 +284,42 @@ router.post('/login', strictRateLimiter, [
     })
   }
 
+  await syncAdminRole(user)
+
   const token = await createSessionToken(req, String(user._id))
+  let accountDeletionCanceledOnLogin = false
+
+  if (user.accountDeletionScheduledFor) {
+    const scheduledFor = new Date(user.accountDeletionScheduledFor).getTime()
+    const now = Date.now()
+
+    if (scheduledFor > now) {
+      user.accountDeletionRequestedAt = null
+      user.accountDeletionScheduledFor = null
+      user.accountDeletionTokenHash = null
+      await user.save()
+      accountDeletionCanceledOnLogin = true
+
+      try {
+        await sendAccountDeletionCanceledEmail(user.email, user.firstName, 'login')
+      } catch (error: any) {
+        logger.error(`Failed to send auto-cancel deletion email for ${user.email}: ${error.message}`)
+      }
+    }
+  }
 
   logger.info(`User logged in: ${normalizedEmail}`)
 
   res.json({
     token,
     user: formatUser(user),
+    ...(accountDeletionCanceledOnLogin ? { accountDeletionCanceledOnLogin: true } : {}),
     ...(twoFactorResult.recoveryCodeRotated ? { recoveryCodeRotated: twoFactorResult.recoveryCodeRotated } : {}),
   })
 }))
 
 // Verify email via OTP
-router.post('/verify-email', strictRateLimiter, [
+router.post('/verify-email', strictRateLimiter, requireRecaptcha('verify_email'), [
   body('email').isEmail().normalizeEmail(),
   body('otp').isLength({ min: 6, max: 6 }).isNumeric()
 ], asyncHandler(async (req: Request, res: Response) => {
@@ -289,6 +338,7 @@ router.post('/verify-email', strictRateLimiter, [
   }
 
   if (user.emailVerified) {
+    await syncAdminRole(user)
     const token = await createSessionToken(req, String(user._id))
     return res.json({
       message: 'Email already verified.',
@@ -327,6 +377,8 @@ router.post('/verify-email', strictRateLimiter, [
   user.emailVerificationAttempts = 0
   await user.save()
 
+  await syncAdminRole(user)
+
   try {
     await sendWelcomeEmail(user.email, user.firstName)
   } catch (error: any) {
@@ -344,7 +396,7 @@ router.post('/verify-email', strictRateLimiter, [
 }))
 
 // Resend verification OTP
-router.post('/resend-verification', strictRateLimiter, [
+router.post('/resend-verification', strictRateLimiter, requireRecaptcha('resend_verification'), [
   body('email').isEmail().normalizeEmail()
 ], asyncHandler(async (req: Request, res: Response) => {
   const errors = validationResult(req)
@@ -398,7 +450,7 @@ router.post('/resend-verification', strictRateLimiter, [
 }))
 
 // Request password reset
-router.post('/forgot-password', strictRateLimiter, [
+router.post('/forgot-password', strictRateLimiter, requireRecaptcha('forgot_password'), [
   body('email').isEmail().normalizeEmail(),
 ], asyncHandler(async (req: Request, res: Response) => {
   const errors = validationResult(req)
@@ -430,7 +482,7 @@ router.post('/forgot-password', strictRateLimiter, [
 }))
 
 // Reset password
-router.post('/reset-password', strictRateLimiter, [
+router.post('/reset-password', strictRateLimiter, requireRecaptcha('reset_password'), [
   body('email').isEmail().normalizeEmail(),
   body('code').isLength({ min: 6, max: 6 }).isNumeric(),
   body('newPassword').isLength({ min: 8 }),
@@ -463,6 +515,12 @@ router.post('/reset-password', strictRateLimiter, [
   await user.save()
 
   await Session.updateMany({ userId: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } })
+
+  try {
+    await sendPasswordChangedConfirmationEmail(user.email, user.firstName, new Date())
+  } catch (error: any) {
+    logger.error(`Failed to send password-changed confirmation email for ${user.email}: ${error.message}`)
+  }
 
   res.json({ message: 'Password reset successful. Please log in again.' })
 }))

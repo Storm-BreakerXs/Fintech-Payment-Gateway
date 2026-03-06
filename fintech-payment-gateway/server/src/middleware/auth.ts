@@ -28,6 +28,11 @@ export async function authenticateToken(
       return res.status(401).json({ error: 'User not found or inactive' })
     }
 
+    if (config.adminEmails.includes(String(user.email || '').toLowerCase()) && user.role !== 'admin') {
+      user.role = 'admin'
+      await user.save()
+    }
+
     if (decoded.sid) {
       const session = await Session.findOne({ tokenId: decoded.sid, userId: user._id })
       if (!session || session.revokedAt) {
@@ -50,6 +55,15 @@ export function requireKyc(req: AuthRequest, res: Response, next: NextFunction) 
     return res.status(403).json({ 
       error: 'KYC verification required',
       kycStatus: req.user?.kycStatus
+    })
+  }
+  next()
+}
+
+export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({
+      error: 'Admin access required',
     })
   }
   next()

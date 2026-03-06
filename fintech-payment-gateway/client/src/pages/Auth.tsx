@@ -3,7 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight, CheckCircle, Lock, Mail, Shield, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { API_BASE_URL } from '../utils/api'
+import { executeRecaptcha, isRecaptchaEnabled } from '../utils/recaptcha'
 import { AuthUser, setAuthData } from '../utils/auth'
+import { visualAssets } from '../content/visualAssets'
 
 type AuthMode = 'login' | 'register' | 'forgot' | 'reset'
 
@@ -56,6 +58,7 @@ export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [requiresTwoFactor, setRequiresTwoFactor] = useState(false)
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [recoveryCode, setRecoveryCode] = useState('')
 
@@ -64,6 +67,7 @@ export default function Auth() {
   const [resetCode, setResetCode] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const recaptchaEnabled = isRecaptchaEnabled()
 
   useEffect(() => {
     if (mode !== 'reset') {
@@ -81,6 +85,7 @@ export default function Auth() {
     setConfirmPassword('')
     setOtp('')
     setVerificationEmail('')
+    setRequiresTwoFactor(false)
     setTwoFactorCode('')
     setRecoveryCode('')
   }, [mode])
@@ -94,6 +99,9 @@ export default function Auth() {
     setSearchParams(nextParams)
     setOtp('')
     setVerificationEmail('')
+    setRequiresTwoFactor(false)
+    setTwoFactorCode('')
+    setRecoveryCode('')
   }
 
   const handleAuthSubmit = async (e: FormEvent) => {
@@ -106,17 +114,29 @@ export default function Auth() {
 
     setIsSubmitting(true)
 
-    const endpoint = mode === 'register' ? '/auth/register' : '/auth/login'
-    const payload = mode === 'register'
-      ? { firstName, lastName, email, password }
-      : {
-          email,
-          password,
-          ...(twoFactorCode.trim() ? { twoFactorCode: twoFactorCode.trim() } : {}),
-          ...(recoveryCode.trim() ? { recoveryCode: recoveryCode.trim() } : {}),
-        }
-
     try {
+      const captchaToken = await executeRecaptcha(mode === 'register' ? 'register' : 'login')
+      const endpoint = mode === 'register' ? '/auth/register' : '/auth/login'
+      const payload = mode === 'register'
+        ? {
+            firstName,
+            lastName,
+            email,
+            password,
+            ...(captchaToken ? { captchaToken } : {}),
+          }
+        : {
+            email,
+            password,
+            ...(requiresTwoFactor && twoFactorCode.trim()
+              ? { twoFactorCode: twoFactorCode.trim() }
+              : {}),
+            ...(requiresTwoFactor && recoveryCode.trim()
+              ? { recoveryCode: recoveryCode.trim() }
+              : {}),
+            ...(captchaToken ? { captchaToken } : {}),
+          }
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,6 +155,9 @@ export default function Auth() {
         }
 
         if (data?.code === 'TWO_FACTOR_REQUIRED') {
+          setRequiresTwoFactor(true)
+          setTwoFactorCode('')
+          setRecoveryCode('')
           toast.error('Enter your 2FA code or recovery code to continue.')
           return
         }
@@ -149,11 +172,15 @@ export default function Auth() {
         return
       }
 
+      setRequiresTwoFactor(false)
       persistAuth(data)
       if (data?.recoveryCodeRotated) {
         toast.success(`Logged in. New recovery code: ${data.recoveryCodeRotated}`)
       } else {
         toast.success('Logged in successfully.')
+      }
+      if (data?.accountDeletionCanceledOnLogin) {
+        toast.success('Your scheduled account deletion has been canceled because you signed in within 24 hours.')
       }
       navigate(postAuthRedirect)
     } catch (error: any) {
@@ -172,10 +199,14 @@ export default function Auth() {
 
     setIsSubmitting(true)
     try {
+      const captchaToken = await executeRecaptcha('forgot_password')
       const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail.trim() }),
+        body: JSON.stringify({
+          email: forgotEmail.trim(),
+          ...(captchaToken ? { captchaToken } : {}),
+        }),
       })
 
       const data = await response.json()
@@ -220,6 +251,7 @@ export default function Auth() {
 
     setIsSubmitting(true)
     try {
+      const captchaToken = await executeRecaptcha('reset_password')
       const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -227,6 +259,7 @@ export default function Auth() {
           email: resetEmail.trim(),
           code: resetCode.trim(),
           newPassword,
+          ...(captchaToken ? { captchaToken } : {}),
         }),
       })
 
@@ -243,6 +276,7 @@ export default function Auth() {
       setSearchParams(nextParams)
       setEmail(resetEmail.trim())
       setPassword('')
+      setRequiresTwoFactor(false)
       setTwoFactorCode('')
       setRecoveryCode('')
     } catch (error: any) {
@@ -268,12 +302,14 @@ export default function Auth() {
     setIsVerifying(true)
 
     try {
+      const captchaToken = await executeRecaptcha('verify_email')
       const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: verificationEmail,
           otp: otp.trim(),
+          ...(captchaToken ? { captchaToken } : {}),
         }),
       })
 
@@ -301,10 +337,14 @@ export default function Auth() {
     setIsResending(true)
 
     try {
+      const captchaToken = await executeRecaptcha('resend_verification')
       const response = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: verificationEmail }),
+        body: JSON.stringify({
+          email: verificationEmail,
+          ...(captchaToken ? { captchaToken } : {}),
+        }),
       })
 
       const data = await response.json()
@@ -323,9 +363,32 @@ export default function Auth() {
   const showPrimaryAuthForm = mode === 'login' || mode === 'register'
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14 space-y-6">
+      <section className="relative overflow-hidden rounded-3xl border border-cyan-300/30 bg-gradient-to-br from-cyan-500/12 via-blue-500/10 to-slate-900/40 p-6 sm:p-8">
+        <div className="absolute inset-0 grid-bg opacity-25" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-100">Secure Access</p>
+            <h2 className="text-2xl sm:text-3xl text-white mt-2">Your FinPay account, protected by design.</h2>
+            <p className="text-slate-300 mt-2 text-sm sm:text-base">
+              Sign in, create an account, or recover access from one secure flow.
+            </p>
+          </div>
+          <div className="home-surface rounded-2xl border border-slate-500/30 p-4 sm:p-5">
+            <p className="text-xs uppercase tracking-[0.18em] text-cyan-100">Security Layers</p>
+            <p className="text-white mt-2 text-sm">Email verification, adaptive step-up checks, and secure recovery.</p>
+          </div>
+        </div>
+      </section>
+
       <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-stretch">
-        <div className="glass rounded-2xl border border-slate-700 p-6 sm:p-10">
+        <div className="home-surface rounded-3xl border border-slate-500/30 p-6 sm:p-10">
+          <img
+            src={visualAssets.accountAccess.src}
+            alt={visualAssets.accountAccess.alt}
+            className="h-44 w-full rounded-2xl object-cover border border-slate-500/25 mb-5"
+            loading="lazy"
+          />
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center mb-5">
             <Shield className="w-7 h-7 text-white" />
           </div>
@@ -353,12 +416,12 @@ export default function Auth() {
             </div>
             <div className="flex items-start space-x-3">
               <span className="w-2 h-2 rounded-full bg-emerald-500 mt-2" />
-              <span>Optional two-factor login with recovery code support.</span>
+              <span>Step-up verification appears only when your account requires it.</span>
             </div>
           </div>
         </div>
 
-        <div className="glass rounded-2xl border border-slate-700 p-6 sm:p-10">
+        <div className="home-surface rounded-3xl border border-slate-500/30 p-6 sm:p-10">
           {!verificationEmail ? (
             <>
               {showPrimaryAuthForm && (
@@ -470,10 +533,13 @@ export default function Auth() {
                     </div>
                   )}
 
-                  {mode === 'login' && (
-                    <>
+                  {mode === 'login' && requiresTwoFactor && (
+                    <div className="space-y-4 rounded-xl border border-cyan-400/30 bg-cyan-500/10 p-4">
+                      <p className="text-sm text-cyan-100">
+                        Extra verification is enabled on this account. Enter a 2FA code or a recovery code.
+                      </p>
                       <div>
-                        <label className="block text-sm text-slate-300 mb-2">2FA Code (if enabled)</label>
+                        <label className="block text-sm text-slate-300 mb-2">2FA Code</label>
                         <input
                           type="text"
                           value={twoFactorCode}
@@ -493,6 +559,17 @@ export default function Auth() {
                           placeholder="ABC123-DEF456"
                         />
                       </div>
+                    </div>
+                  )}
+
+                  {mode === 'login' && !requiresTwoFactor && (
+                    <p className="text-sm text-slate-400">
+                      If your account needs extra verification, we will ask for a code after password check.
+                    </p>
+                  )}
+
+                  {mode === 'login' && (
+                    <>
                       <button
                         type="button"
                         onClick={() => {
@@ -514,6 +591,10 @@ export default function Auth() {
                     <span>{isSubmitting ? 'Please wait...' : mode === 'register' ? 'Create Account' : 'Sign In'}</span>
                     {!isSubmitting && <ArrowRight className="w-4 h-4" />}
                   </button>
+
+                  {recaptchaEnabled && (
+                    <p className="text-xs text-slate-400">Protected by reCAPTCHA.</p>
+                  )}
                 </form>
               )}
 
@@ -542,6 +623,10 @@ export default function Auth() {
                     <span>{isSubmitting ? 'Please wait...' : 'Send Reset Code'}</span>
                     {!isSubmitting && <ArrowRight className="w-4 h-4" />}
                   </button>
+
+                  {recaptchaEnabled && (
+                    <p className="text-xs text-slate-400">Protected by reCAPTCHA.</p>
+                  )}
                 </form>
               )}
 
@@ -609,6 +694,10 @@ export default function Auth() {
                     <span>{isSubmitting ? 'Please wait...' : 'Reset Password'}</span>
                     {!isSubmitting && <ArrowRight className="w-4 h-4" />}
                   </button>
+
+                  {recaptchaEnabled && (
+                    <p className="text-xs text-slate-400">Protected by reCAPTCHA.</p>
+                  )}
                 </form>
               )}
 
@@ -671,6 +760,10 @@ export default function Auth() {
                   <span>{isVerifying ? 'Verifying...' : 'Verify Email'}</span>
                   {!isVerifying && <ArrowRight className="w-4 h-4" />}
                 </button>
+
+                {recaptchaEnabled && (
+                  <p className="text-xs text-slate-400">Protected by reCAPTCHA.</p>
+                )}
               </form>
 
               <div className="flex flex-col sm:flex-row gap-3">

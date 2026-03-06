@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Building2, Landmark, ShoppingBag, Users2 } from 'lucide-react'
+import { visualAssets } from '../content/visualAssets'
 
 const solutionTracks = [
   {
@@ -37,8 +38,8 @@ export default function SolutionsPage() {
               Industry solution blueprints for cross-border payment growth.
             </h1>
             <p className="text-slate-200/90 text-base sm:text-lg max-w-3xl">
-              We map your use case, volume, corridors, and compliance profile into a rollout plan that engineering and
-              operations teams can execute without ambiguity.
+              We map your use case, volume, corridors, and compliance profile into a rollout plan your team can execute
+              with confidence.
             </p>
             <Link
               to="/contact-sales"
@@ -49,11 +50,21 @@ export default function SolutionsPage() {
             </Link>
           </div>
 
-          <div className="home-surface rounded-2xl border border-slate-500/30 p-5 space-y-3">
-            <p className="text-xs uppercase tracking-[0.2em] text-amber-100">Engagement Path</p>
-            <div className="rounded-xl border border-slate-500/25 bg-slate-950/35 p-4 text-sm text-slate-200">1. Discovery: volume, markets, risk profile</div>
-            <div className="rounded-xl border border-slate-500/25 bg-slate-950/35 p-4 text-sm text-slate-200">2. Solution Design: rails, routing, compliance controls</div>
-            <div className="rounded-xl border border-slate-500/25 bg-slate-950/35 p-4 text-sm text-slate-200">3. Go-Live Plan: integration milestones + ownership map</div>
+          <div className="space-y-3">
+            <div className="home-surface rounded-2xl border border-slate-500/30 overflow-hidden">
+              <img
+                src={visualAssets.onboardingJourney.src}
+                alt={visualAssets.onboardingJourney.alt}
+                className="h-44 w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+            <div className="home-surface rounded-2xl border border-slate-500/30 p-5 space-y-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-amber-100">Engagement Path</p>
+              <div className="rounded-xl border border-slate-500/25 bg-slate-950/35 p-4 text-sm text-slate-200">1. Discovery: your volume, markets, and risk profile</div>
+              <div className="rounded-xl border border-slate-500/25 bg-slate-950/35 p-4 text-sm text-slate-200">2. Solution Design: payment rails, routing, and controls</div>
+              <div className="rounded-xl border border-slate-500/25 bg-slate-950/35 p-4 text-sm text-slate-200">3. Go-Live Plan: clear timeline and ownership</div>
+            </div>
           </div>
         </div>
       </section>

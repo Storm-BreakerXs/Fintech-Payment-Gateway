@@ -19,6 +19,7 @@ import toast from 'react-hot-toast'
 import { useWeb3Store } from '../hooks/useWeb3'
 import { apiRequest } from '../utils/api'
 import { AuthUser, clearAuthData, updateStoredUser } from '../utils/auth'
+import { visualAssets } from '../content/visualAssets'
 
 type SettingsSection = 'profile' | 'notifications' | 'security' | 'wallets' | 'preferences'
 
@@ -94,7 +95,7 @@ export default function Settings() {
     securityAlerts: true,
   })
 
-  const { isConnected, address, balance, chainId } = useWeb3Store()
+  const { isConnected, address, balance, chainId, disconnect } = useWeb3Store()
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true)
@@ -230,7 +231,7 @@ export default function Settings() {
 
     setIsDeleting(true)
     try {
-      const data = await apiRequest<{ message: string; scheduledFor: string }>(
+      const data = await apiRequest<{ message: string; scheduledFor: string; shouldSignOut?: boolean }>(
         '/users/delete-account',
         {
           method: 'POST',
@@ -250,7 +251,12 @@ export default function Settings() {
       })
       setDeleteConfirmation('')
       setDeletePassword('')
-      toast.success(data.message || 'Account deletion has been scheduled.')
+      if (isConnected) {
+        disconnect()
+      }
+      clearAuthData()
+      toast.success(data.message || 'Account deletion has been scheduled. You have been signed out.')
+      navigate('/auth?mode=login', { replace: true })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Could not schedule account deletion.'
       toast.error(message)
@@ -417,8 +423,8 @@ export default function Settings() {
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="glass rounded-2xl border border-slate-700 p-12 flex items-center justify-center space-x-3 text-slate-300">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="home-surface rounded-3xl border border-slate-500/30 p-12 flex items-center justify-center space-x-3 text-slate-300">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading settings...</span>
         </div>
@@ -427,15 +433,45 @@ export default function Settings() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Settings</h1>
-        <p className="text-slate-400">Manage your account and preferences</p>
-      </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
+      <section className="relative overflow-hidden rounded-3xl border border-blue-300/30 bg-gradient-to-br from-blue-500/13 via-cyan-500/10 to-slate-900/45 p-6 sm:p-8">
+        <div className="absolute inset-0 grid-bg opacity-20" />
+        <div className="relative grid lg:grid-cols-[1.05fr,0.95fr] gap-6 items-start">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-blue-100">Account Center</p>
+            <h1 className="text-3xl sm:text-4xl text-white mt-2">Manage your profile, security, and preferences.</h1>
+            <p className="text-slate-300 mt-3 max-w-2xl">
+              Keep your account details up to date, protect access with 2FA, and control notifications.
+            </p>
+            <div className="grid sm:grid-cols-3 gap-3 mt-5">
+              <div className="home-surface rounded-xl border border-slate-500/30 p-3">
+                <p className="text-xs text-blue-100 uppercase tracking-[0.18em]">Email</p>
+                <p className="text-white font-semibold mt-1">{profile?.emailVerified ? 'Verified' : 'Pending'}</p>
+              </div>
+              <div className="home-surface rounded-xl border border-slate-500/30 p-3">
+                <p className="text-xs text-blue-100 uppercase tracking-[0.18em]">2FA</p>
+                <p className="text-white font-semibold mt-1">{profile?.twoFactorEnabled ? 'Enabled' : 'Disabled'}</p>
+              </div>
+              <div className="home-surface rounded-xl border border-slate-500/30 p-3">
+                <p className="text-xs text-blue-100 uppercase tracking-[0.18em]">Wallet</p>
+                <p className="text-white font-semibold mt-1">{isConnected ? 'Connected' : 'Not connected'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="home-surface rounded-2xl border border-slate-500/30 overflow-hidden">
+            <img
+              src={visualAssets.settingsControl.src}
+              alt={visualAssets.settingsControl.alt}
+              className="h-full min-h-[250px] w-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </section>
 
       <div className="grid lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1">
-          <div className="glass rounded-2xl border border-slate-700 overflow-hidden">
+          <div className="home-surface rounded-2xl border border-slate-500/30 overflow-hidden">
             {settingsSections.map((section) => {
               const Icon = section.icon
               return (
@@ -461,7 +497,7 @@ export default function Settings() {
             key={activeSection}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass rounded-2xl p-8 border border-slate-700"
+            className="home-surface rounded-3xl p-8 border border-slate-500/30"
           >
             {activeSection === 'profile' && (
               <div className="space-y-6">
@@ -749,8 +785,8 @@ export default function Settings() {
                     </div>
 
                     <p className="text-sm text-red-200/90">
-                      Deleting your account schedules permanent removal after a safety grace window.
-                      You can cancel during that window.
+                      Deleting your account schedules permanent removal after a 24-hour safety window.
+                      You will be signed out immediately. If you sign back in within 24 hours, deletion is canceled automatically.
                     </p>
 
                     <div>

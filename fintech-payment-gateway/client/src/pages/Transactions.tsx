@@ -133,7 +133,7 @@ export default function Transactions() {
             <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">History and Recovery</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">Track failures and retry safely</h2>
             <p className="mt-3 text-sm text-slate-300 max-w-2xl">
-              Transaction history now includes direct retry routes for failed card payments and clearer status visibility.
+              Quickly find completed, pending, or failed payments and take action.
             </p>
             <Link
               to="/payment"
@@ -144,15 +144,15 @@ export default function Transactions() {
             </Link>
           </div>
           <img
-            src={visualAssets.paymentFailure.src}
-            alt={visualAssets.paymentFailure.alt}
+            src={visualAssets.failedRecovery.src}
+            alt={visualAssets.failedRecovery.alt}
             className="h-full min-h-[210px] w-full object-cover"
             loading="lazy"
           />
         </div>
       </div>
 
-      <div className="glass rounded-2xl p-4 border border-slate-700 mb-6">
+      <div className="home-surface rounded-2xl p-4 border border-slate-700 mb-6">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -194,7 +194,7 @@ export default function Transactions() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass rounded-2xl border border-slate-700 overflow-hidden"
+        className="home-surface rounded-2xl border border-slate-700 overflow-hidden"
       >
         {isLoading ? (
           <div className="p-12 flex items-center justify-center space-x-3 text-slate-300">

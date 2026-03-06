@@ -254,11 +254,10 @@ export default function Dashboard() {
       <div className="mb-8 rounded-3xl border border-slate-700/80 bg-slate-900/60 overflow-hidden">
         <div className="grid lg:grid-cols-[1.2fr,0.8fr]">
           <div className="p-6 sm:p-8">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Operations Snapshot</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Business Snapshot</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">Monitor performance and act on failures faster</h2>
             <p className="mt-3 text-sm text-slate-300 max-w-2xl">
-              This dashboard now aligns with the checkout UX: explicit states, strong trust cues,
-              and direct routes to retry or inspect payment events.
+              Track volume, success rates, and recent payment activity in one place.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
@@ -273,13 +272,13 @@ export default function Dashboard() {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/65 px-4 py-2.5 text-sm text-slate-200"
               >
                 <Shield className="w-4 h-4 text-cyan-300" />
-                <span>Test Checkout</span>
+                <span>Create Payment</span>
               </Link>
             </div>
           </div>
           <img
-            src={visualAssets.supportTeam.src}
-            alt={visualAssets.supportTeam.alt}
+            src={visualAssets.analyticsCenter.src}
+            alt={visualAssets.analyticsCenter.alt}
             className="h-full min-h-[220px] w-full object-cover"
             loading="lazy"
           />
@@ -287,7 +286,7 @@ export default function Dashboard() {
       </div>
 
       {isLoading ? (
-        <div className="glass rounded-2xl border border-slate-700 p-10 flex items-center justify-center space-x-3 text-slate-300">
+        <div className="home-surface rounded-2xl border border-slate-700 p-10 flex items-center justify-center space-x-3 text-slate-300">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading dashboard data...</span>
         </div>
@@ -302,7 +301,7 @@ export default function Dashboard() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.08 }}
-                  className="glass rounded-2xl p-6 border border-slate-700"
+                  className="home-surface rounded-2xl p-6 border border-slate-700"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.iconClasses}`}>
@@ -325,7 +324,7 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="lg:col-span-2 glass rounded-2xl p-6 border border-slate-700"
+              className="lg:col-span-2 home-surface rounded-2xl p-6 border border-slate-700"
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold">Revenue Overview (USD)</h2>
@@ -366,7 +365,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-sm text-slate-400 gap-2">
                     <span>No chart data available for this period.</span>
-                    <Link to="/payment" className="text-cyan-200 hover:text-cyan-100 transition-colors">Run a test payment to populate analytics.</Link>
+                    <Link to="/payment" className="text-cyan-200 hover:text-cyan-100 transition-colors">Create your first payment to see analytics.</Link>
                   </div>
                 )}
               </div>
@@ -376,7 +375,7 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="glass rounded-2xl p-6 border border-slate-700"
+              className="home-surface rounded-2xl p-6 border border-slate-700"
             >
               <h2 className="text-lg font-semibold mb-6">Payment Methods</h2>
               <div className="h-48">
@@ -430,7 +429,7 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="glass rounded-2xl border border-slate-700 overflow-hidden"
+            className="home-surface rounded-2xl border border-slate-700 overflow-hidden"
           >
             <div className="p-6 border-b border-slate-800">
               <h2 className="text-lg font-semibold">Recent Transactions</h2>

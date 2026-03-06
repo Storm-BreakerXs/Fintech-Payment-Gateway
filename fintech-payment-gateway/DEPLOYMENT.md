@@ -1,4 +1,4 @@
-# Deployment Guide (cPanel + Render, No Netlify)
+# Deployment Guide (cPanel + Render)
 
 ## Architecture
 
@@ -64,7 +64,7 @@ In Render custom domains for the API service:
 
 ## 3) Configure DNS at your registrar/cPanel
 
-Use your registrar DNS (not Netlify DNS):
+Use your registrar DNS:
 
 - `A` record: `@` -> your cPanel server IP
 - `CNAME` record: `www` -> `@` (or `finpay.com.ng`)

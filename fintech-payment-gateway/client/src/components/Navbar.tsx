@@ -17,6 +17,7 @@ import {
   Newspaper,
   Shield,
   Sparkles,
+  Users,
   Wallet,
   WalletCards,
   Webhook,
@@ -53,7 +54,7 @@ const navGroups: NavGroup[] = [
     icon: WalletCards,
     badge: 'Core',
     items: [
-      { label: 'Checkout', path: '/payment', description: 'Card + crypto payment flow', icon: CreditCard },
+      { label: 'Checkout', path: '/payment', description: 'Pay with card or crypto', icon: CreditCard },
       { label: 'Product Platform', path: '/products', description: 'Unified product overview', icon: Sparkles },
       { label: 'Pricing', path: '/pricing', description: 'Usage and enterprise plans', icon: Briefcase },
       { label: 'Security', path: '/security', description: 'Architecture and controls', icon: Shield },
@@ -66,9 +67,9 @@ const navGroups: NavGroup[] = [
     icon: Building2,
     badge: 'Industry',
     items: [
-      { label: 'Solutions Hub', path: '/solutions', description: 'Use-case implementation tracks', icon: Building2 },
-      { label: 'Enterprise', path: '/enterprise', description: 'Governance and scale controls', icon: Briefcase },
-      { label: 'Status', path: '/status', description: 'Operational health and uptime', icon: Zap },
+      { label: 'Solutions Hub', path: '/solutions', description: 'Industry payment solutions', icon: Building2 },
+      { label: 'Enterprise', path: '/enterprise', description: 'Scalable controls and support', icon: Briefcase },
+      { label: 'Status', path: '/status', description: 'Live service status', icon: Zap },
       { label: 'Contact Sales', path: '/contact-sales', description: 'Talk with solution specialists', icon: Globe2 },
     ],
   },
@@ -82,7 +83,7 @@ const navGroups: NavGroup[] = [
       { label: 'Company', path: '/company', description: 'Mission, values, and milestones', icon: Newspaper },
       { label: 'Careers', path: '/careers', description: 'Join the team', icon: Briefcase },
       { label: 'Press', path: '/press', description: 'Newsroom and updates', icon: Globe2 },
-      { label: 'Blog', path: '/blog', description: 'Engineering and product notes', icon: BookOpenText },
+      { label: 'Blog', path: '/blog', description: 'Company news and product updates', icon: BookOpenText },
     ],
   },
   {
@@ -92,15 +93,15 @@ const navGroups: NavGroup[] = [
     icon: Code2,
     badge: 'Build',
     items: [
-      { label: 'Developer Hub', path: '/developers', description: 'Quickstart + integration flow', icon: Code2 },
+      { label: 'Integration Hub', path: '/developers', description: 'Setup guides and references', icon: Code2 },
       { label: 'Documentation', path: '/documentation', description: 'Guides and references', icon: FileCode2 },
-      { label: 'API Reference', path: '/api-reference', description: 'Endpoint contract details', icon: BookOpenText },
-      { label: 'Webhooks', path: '/status', description: 'Event handling and reliability', icon: Webhook },
+      { label: 'API Reference', path: '/api-reference', description: 'Endpoint details and examples', icon: BookOpenText },
+      { label: 'Webhooks', path: '/status', description: 'Webhook setup and reliability', icon: Webhook },
     ],
   },
 ]
 
-const accountLinks = [
+const baseAccountLinks = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/transactions', label: 'History', icon: History },
   { path: '/settings', label: 'Settings', icon: Shield },
@@ -115,9 +116,37 @@ export default function Navbar() {
   const { address, isConnected, disconnect, balance, chainId } = useWeb3Store()
   const authenticated = isAuthenticated()
   const user = getStoredUser()
+  const isAdmin = user?.role === 'admin'
+
+  const accountLinks = useMemo(() => {
+    if (!authenticated) {
+      return []
+    }
+
+    return [
+      ...baseAccountLinks,
+      ...(isAdmin ? [{ path: '/admin/users', label: 'Users', icon: Users }] : []),
+    ]
+  }, [authenticated, isAdmin])
 
   const navItems = useMemo(() => {
     if (!authenticated) return navGroups
+    const workspaceItems: NavLinkItem[] = [
+      { label: 'Dashboard', path: '/dashboard', description: 'Live transaction analytics', icon: LayoutDashboard },
+      { label: 'History', path: '/transactions', description: 'Transaction ledger view', icon: History },
+      { label: 'Settings', path: '/settings', description: 'Account and security controls', icon: Shield },
+      { label: 'Payments', path: '/payment', description: 'Make a payment', icon: CreditCard },
+    ]
+
+    if (isAdmin) {
+      workspaceItems.push({
+        label: 'User Management',
+        path: '/admin/users',
+        description: 'Search and export user records',
+        icon: Users,
+      })
+    }
+
     return [
       ...navGroups,
       {
@@ -125,16 +154,11 @@ export default function Navbar() {
         label: 'Workspace',
         path: '/dashboard',
         icon: LayoutDashboard,
-        badge: 'Ops',
-        items: [
-          { label: 'Dashboard', path: '/dashboard', description: 'Live transaction analytics', icon: LayoutDashboard },
-          { label: 'History', path: '/transactions', description: 'Transaction ledger view', icon: History },
-          { label: 'Settings', path: '/settings', description: 'Account and security controls', icon: Shield },
-          { label: 'Payments', path: '/payment', description: 'Run a payment test flow', icon: CreditCard },
-        ],
+        badge: 'Account',
+        items: workspaceItems,
       },
     ]
-  }, [authenticated])
+  }, [authenticated, isAdmin])
 
   const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`
 
@@ -254,6 +278,16 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-3">
               {authenticated && (
                 <span className="text-sm text-slate-300">{user?.firstName ? `Hi, ${user.firstName}` : 'Signed in'}</span>
+              )}
+
+              {authenticated && isAdmin && (
+                <Link
+                  to="/admin/users"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-amber-300/40 bg-amber-400/10 text-amber-100 text-sm font-semibold hover:bg-amber-400/20 transition-colors"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Users</span>
+                </Link>
               )}
 
               <Link

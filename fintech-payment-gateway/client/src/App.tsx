@@ -16,6 +16,8 @@ const SolutionsPage = lazy(() => import('./pages/SolutionsPage'))
 const CompanyPage = lazy(() => import('./pages/CompanyPage'))
 const DevelopersPage = lazy(() => import('./pages/DevelopersPage'))
 const ContactSales = lazy(() => import('./pages/ContactSales'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const AdminUsers = lazy(() => import('./pages/AdminUsers'))
 
 function App() {
   const { initialize } = useWeb3Store()
@@ -28,8 +30,8 @@ function App() {
     <Layout>
       <Suspense
         fallback={(
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-            <div className="glass rounded-2xl border border-slate-700 p-8 text-slate-300">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div className="home-surface rounded-2xl border border-slate-700 p-8 text-slate-300">
               Loading...
             </div>
           </div>
@@ -49,6 +51,8 @@ function App() {
           <Route path="/developers" element={<DevelopersPage />} />
           <Route path="/documentation" element={<DevelopersPage />} />
           <Route path="/contact-sales" element={<ContactSales />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/payment" element={<Payment />} />
           <Route
             path="/dashboard"
@@ -71,6 +75,14 @@ function App() {
             element={(
               <ProtectedRoute>
                 <Settings />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/admin/users"
+            element={(
+              <ProtectedRoute requireAdmin>
+                <AdminUsers />
               </ProtectedRoute>
             )}
           />

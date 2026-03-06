@@ -35,7 +35,7 @@ const metrics: MetricItem[] = [
   {
     label: 'Uptime Target',
     value: '99.95%',
-    note: 'Observed with active monitoring and failover-first architecture.',
+    note: 'Observed with active monitoring and resilient infrastructure.',
   },
   {
     label: 'Payment Rails',
@@ -57,7 +57,7 @@ const metrics: MetricItem[] = [
 const features: FeatureItem[] = [
   {
     title: 'Checkout That Converts',
-    description: 'A cleaner flow built for trust and higher completion rates.',
+    description: 'A smooth payment journey that helps more customers complete checkout.',
     bullets: [
       'Card redirect via Stripe hosted checkout',
       'Crypto payment mode with wallet flow and live status',
@@ -77,9 +77,9 @@ const features: FeatureItem[] = [
     title: 'Security and Compliance',
     description: 'Trust signals are embedded across every critical surface.',
     bullets: [
-      'Transport security and hardened API middleware',
-      'KYC-aware route controls on sensitive operations',
-      'Auditable transaction state model for compliance teams',
+      'Advanced fraud and verification controls',
+      'Secure encrypted handling of payment data',
+      'Clear records for compliance and dispute resolution',
     ],
   },
 ]
@@ -88,7 +88,7 @@ const useCases: UseCaseItem[] = [
   {
     title: 'Marketplaces',
     summary: 'Collect from buyers and settle faster to sellers.',
-    impact: 'Reduce payment operations friction and support disputes faster.',
+    impact: 'Reduce payment friction and resolve disputes faster.',
   },
   {
     title: 'Cross-Border Commerce',
@@ -97,8 +97,8 @@ const useCases: UseCaseItem[] = [
   },
   {
     title: 'Fintech Platforms',
-    summary: 'Launch branded checkout and API-first transaction tooling.',
-    impact: 'Ship new corridors without re-platforming core payments.',
+    summary: 'Offer branded checkout and reliable transaction tracking.',
+    impact: 'Expand to new markets with confidence and speed.',
   },
 ]
 
@@ -225,8 +225,8 @@ export default function Home() {
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-7">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">Trusted Integration Ecosystem</h2>
-          <span className="text-sm text-slate-400">Works with major payment and Web3 infrastructure</span>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white">Trusted Payment Partners</h2>
+          <span className="text-sm text-slate-400">Connected with leading payment and digital asset networks</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {integrationLogos.map((item) => (
@@ -245,12 +245,12 @@ export default function Home() {
         <article className="rounded-3xl border border-slate-700/80 bg-slate-900/60 p-7 sm:p-8">
           <h3 className="text-2xl font-bold text-white mb-3">Global Payment Coverage</h3>
           <p className="text-slate-300 mb-6">
-            Support local card familiarity and digital-asset flexibility from one operational backend.
+            Accept familiar card payments and digital assets in one seamless experience.
           </p>
           <div className="space-y-3 text-sm text-slate-300">
             <p className="inline-flex items-center gap-2"><Globe2 className="w-4 h-4 text-cyan-300" /> Card checkout in USD, EUR, GBP.</p>
             <p className="inline-flex items-center gap-2"><Timer className="w-4 h-4 text-cyan-300" /> Live status tracking and transaction history.</p>
-            <p className="inline-flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-300" /> Production-ready APIs for growth teams.</p>
+            <p className="inline-flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-300" /> Fast confirmations and clear customer receipts.</p>
           </div>
           <img
             src={visualAssets.globalNetwork.src}
@@ -263,12 +263,12 @@ export default function Home() {
         <article className="rounded-3xl border border-slate-700/80 bg-slate-900/60 p-7 sm:p-8">
           <h3 className="text-2xl font-bold text-white mb-3">Security and Compliance Confidence</h3>
           <p className="text-slate-300 mb-6">
-            Clear risk posture and resilient defaults for payment data, APIs, and customer operations.
+            Protect every transaction with strong security and compliance-first controls.
           </p>
           <div className="space-y-3 text-sm text-slate-300">
-            <p className="inline-flex items-center gap-2"><Shield className="w-4 h-4 text-cyan-300" /> Hardened backend middleware and request validation.</p>
-            <p className="inline-flex items-center gap-2"><Lock className="w-4 h-4 text-cyan-300" /> Encrypted secret handling and route protection.</p>
-            <p className="inline-flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-300" /> Audit-friendly event and transaction states.</p>
+            <p className="inline-flex items-center gap-2"><Shield className="w-4 h-4 text-cyan-300" /> Advanced fraud checks for safer payments.</p>
+            <p className="inline-flex items-center gap-2"><Lock className="w-4 h-4 text-cyan-300" /> Encrypted checkout and secure customer data handling.</p>
+            <p className="inline-flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-300" /> Transparent records for compliance and support.</p>
           </div>
           <img
             src={visualAssets.securityOps.src}
@@ -281,9 +281,9 @@ export default function Home() {
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-[1fr,1fr] gap-8 items-start">
         <div className="space-y-4">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">What You Can Ship With FinPay</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white">Why Businesses Choose FinPay</h2>
           <p className="text-slate-300 max-w-xl">
-            This release focuses on practical UX: reduced friction, visible trust, and fewer dead ends for users.
+            Deliver faster checkout, stronger trust, and fewer drop-offs during payment.
           </p>
           <img
             src={visualAssets.merchantVerticals.src}
@@ -320,7 +320,7 @@ export default function Home() {
       </section>
 
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">Primary Implementation Outcomes</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">Built for Real Payment Use Cases</h2>
         <div className="grid md:grid-cols-3 gap-4">
           {useCases.map((useCase, index) => (
             <motion.article
@@ -349,10 +349,10 @@ export default function Home() {
             loading="lazy"
           />
           <div className="p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Developer Experience</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">API-first integration with cleaner defaults</h3>
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Fast Setup</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">Integrate quickly and go live sooner</h3>
             <p className="mt-2 text-sm text-slate-300">
-              Better error states, explicit payment status handling, and production routing behavior for frontend API calls.
+              Connect your checkout with reliable payment APIs and start accepting payments in minutes.
             </p>
           </div>
         </article>
@@ -365,10 +365,10 @@ export default function Home() {
             loading="lazy"
           />
           <div className="p-6">
-            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Customer Operations</p>
-            <h3 className="mt-2 text-xl font-semibold text-white">Support-ready transaction views and exports</h3>
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Support Experience</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">Resolve payment issues faster</h3>
             <p className="mt-2 text-sm text-slate-300">
-              Teams can quickly identify pending and failed transactions, export data, and route customers back to retry flows.
+              Track pending and failed payments quickly, export records, and help customers retry with ease.
             </p>
           </div>
         </article>
@@ -376,17 +376,16 @@ export default function Home() {
 
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="rounded-3xl border border-cyan-300/30 bg-gradient-to-r from-cyan-400/10 via-blue-500/10 to-emerald-400/10 p-8 sm:p-10 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white">Ready to ship a stronger payment product?</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-white">Ready to grow with faster payments?</h2>
           <p className="text-slate-200 mt-4 max-w-2xl mx-auto">
-            We have now implemented the foundation: real card redirect processing, better trust UX, clearer states,
-            and richer visual storytelling.
+            Join businesses using FinPay to accept payments securely, improve completion rates, and scale globally.
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Link
               to="/payment"
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-3 font-semibold text-slate-950"
             >
-              <span>Test Payment Flow</span>
+              <span>Start Payment</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
