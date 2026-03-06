@@ -89,40 +89,40 @@ const toneStyles: Record<EmailTone, {
   ctaText: string
 }> = {
   brand: {
-    chipBg: '#0c4a6e',
-    chipBorder: '#155e75',
-    chipText: '#67e8f9',
-    titleColor: '#e2e8f0',
-    cardBorder: '#1f2937',
-    ctaBg: 'linear-gradient(90deg, #14b8a6 0%, #2563eb 100%)',
-    ctaText: '#f8fafc',
+    chipBg: 'transparent',
+    chipBorder: '#3b82f6',
+    chipText: '#9fb8e5',
+    titleColor: '#f1f5ff',
+    cardBorder: '#243756',
+    ctaBg: '#2e6ef7',
+    ctaText: '#f8fbff',
   },
   security: {
-    chipBg: '#1e293b',
-    chipBorder: '#334155',
-    chipText: '#93c5fd',
-    titleColor: '#e2e8f0',
-    cardBorder: '#1f2937',
-    ctaBg: 'linear-gradient(90deg, #0ea5e9 0%, #2563eb 100%)',
-    ctaText: '#f8fafc',
+    chipBg: 'transparent',
+    chipBorder: '#3b82f6',
+    chipText: '#9fb8e5',
+    titleColor: '#f1f5ff',
+    cardBorder: '#243756',
+    ctaBg: '#2e6ef7',
+    ctaText: '#f8fbff',
   },
   success: {
-    chipBg: '#052e16',
-    chipBorder: '#166534',
-    chipText: '#86efac',
-    titleColor: '#dcfce7',
-    cardBorder: '#14532d',
-    ctaBg: 'linear-gradient(90deg, #22c55e 0%, #0891b2 100%)',
-    ctaText: '#f8fafc',
+    chipBg: 'transparent',
+    chipBorder: '#22c55e',
+    chipText: '#99e2b5',
+    titleColor: '#e8fff1',
+    cardBorder: '#25583a',
+    ctaBg: '#1f9f5c',
+    ctaText: '#f8fffb',
   },
   warning: {
-    chipBg: '#450a0a',
-    chipBorder: '#7f1d1d',
-    chipText: '#fecaca',
-    titleColor: '#fee2e2',
-    cardBorder: '#7f1d1d',
-    ctaBg: 'linear-gradient(90deg, #dc2626 0%, #f97316 100%)',
-    ctaText: '#f8fafc',
+    chipBg: 'transparent',
+    chipBorder: '#ef4444',
+    chipText: '#f2b4b4',
+    titleColor: '#ffe8e8',
+    cardBorder: '#6a2b2b',
+    ctaBg: '#d9473c',
+    ctaText: '#fff9f7',
   },
 }
 
@@ -286,10 +286,10 @@ function renderLogoLockup(): string {
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
       <tr>
-        <td style="width: 46px; height: 46px; border-radius: 14px; text-align: center; background: linear-gradient(135deg, #22d3ee 0%, #2563eb 100%); box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35); color: #f8fafc; font-size: 14px; font-weight: 800; letter-spacing: 0.08em;">FP</td>
-        <td style="padding-left: 12px;">
-          <p style="margin: 0; color: #f8fafc; font-size: 24px; font-weight: 700; line-height: 1.1; letter-spacing: -0.01em;">FinPay</p>
-          <p style="margin: 3px 0 0; color: #93c5fd; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;">Payment OS</p>
+        <td style="width: 8px; background: linear-gradient(180deg, #3b82f6 0%, #2dd4bf 100%); border-radius: 8px;"></td>
+        <td style="padding-left: 14px;">
+          <p style="margin: 0; color: #f8fbff; font-size: 27px; font-weight: 650; line-height: 1.08; letter-spacing: -0.015em;">FinPay</p>
+          <p style="margin: 4px 0 0; color: #9db0cc; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;">Payments Infrastructure</p>
         </td>
       </tr>
     </table>
@@ -297,13 +297,13 @@ function renderLogoLockup(): string {
 }
 
 function renderBodyParagraph(value: string): string {
-  return `<p style="margin: 0 0 14px; color: #d6e2f5; font-size: 15px; line-height: 1.68;">${value}</p>`
+  return `<p style="margin: 0 0 15px; color: #d5dff0; font-size: 16px; line-height: 1.62;">${value}</p>`
 }
 
 function renderCodeBlock(code: string): string {
   return `
-    <div style="margin: 22px 0; border-radius: 12px; border: 1px solid #334155; background: #0f172a; text-align: center; padding: 16px 14px;">
-      <p style="margin: 0; font-size: 34px; line-height: 1; font-weight: 800; letter-spacing: 0.35em; color: #e2e8f0;">${escapeHtml(code)}</p>
+    <div style="margin: 24px 0; border-radius: 12px; border: 1px solid #2f4467; background: #0b1326; text-align: center; padding: 18px 14px;">
+      <p style="margin: 0; font-size: 36px; line-height: 1; font-weight: 700; letter-spacing: 0.34em; color: #f0f5ff;">${escapeHtml(code)}</p>
     </div>
   `
 }
@@ -341,8 +341,8 @@ function renderBrandedEmail(options: BrandedEmailOptions): string {
     ? `
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-top: 20px;">
         <tr>
-          <td style="border-radius: 12px; background: ${tone.ctaBg}; text-align: center;">
-            <a href="${escapeAttribute(sanitizeUrl(options.cta.url))}" style="display: inline-block; padding: 13px 22px; font-size: 14px; line-height: 1.2; color: ${tone.ctaText}; font-weight: 700; text-decoration: none;">
+          <td style="border-radius: 10px; background: ${tone.ctaBg}; text-align: center;">
+            <a href="${escapeAttribute(sanitizeUrl(options.cta.url))}" style="display: inline-block; padding: 13px 24px; font-size: 15px; line-height: 1.2; color: ${tone.ctaText}; font-weight: 650; text-decoration: none;">
               ${escapeHtml(options.cta.label)}
             </a>
           </td>
@@ -367,37 +367,37 @@ function renderBrandedEmail(options: BrandedEmailOptions): string {
           @media only screen and (max-width: 640px) {
             .fp-shell { padding: 16px 10px !important; }
             .fp-card { padding: 18px !important; }
-            .fp-title { font-size: 30px !important; }
+            .fp-title { font-size: 36px !important; }
           }
         </style>
       </head>
-      <body style="margin: 0; padding: 0; background: #020617; font-family: 'Avenir Next', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      <body style="margin: 0; padding: 0; background: #070d1a; font-family: 'Avenir Next', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
         <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; visibility: hidden; mso-hide: all;">${preheader}</div>
 
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; background: radial-gradient(circle at top, #0f2a4a 0%, #020617 62%);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; background: radial-gradient(circle at top, #11274a 0%, #070d1a 64%);">
           <tr>
             <td class="fp-shell" align="center" style="padding: 26px 12px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; max-width: 700px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; max-width: 680px;">
                 <tr>
-                  <td style="padding: 0 6px 14px;">
+                  <td style="padding: 0 4px 16px;">
                     ${renderLogoLockup()}
                   </td>
                 </tr>
 
                 <tr>
-                  <td style="border-radius: 22px; border: 1px solid ${tone.cardBorder}; overflow: hidden; background: #0b1220; box-shadow: 0 24px 44px rgba(2, 6, 23, 0.52);">
+                  <td style="border-radius: 18px; border: 1px solid ${tone.cardBorder}; overflow: hidden; background: #081329; box-shadow: 0 22px 42px rgba(3, 9, 22, 0.54);">
                     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
                       <tr>
-                        <td style="padding: 24px 24px 12px; background: linear-gradient(145deg, #0b1220 0%, #101a2d 100%); border-bottom: 1px solid #1f2937;">
-                          <span style="display: inline-block; padding: 6px 12px; border-radius: 999px; border: 1px solid ${tone.chipBorder}; background: ${tone.chipBg}; color: ${tone.chipText}; font-size: 11px; letter-spacing: 0.13em; text-transform: uppercase; font-weight: 700;">
+                        <td style="padding: 28px 28px 14px; background: linear-gradient(145deg, #0b1733 0%, #0b1324 100%); border-bottom: 1px solid #22344f;">
+                          <span style="display: inline-block; padding: 0 0 0 10px; border-left: 2px solid ${tone.chipBorder}; background: ${tone.chipBg}; color: ${tone.chipText}; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 700; line-height: 1.3;">
                             ${eyebrow}
                           </span>
-                          <h1 class="fp-title" style="margin: 14px 0 0; color: ${tone.titleColor}; font-size: 36px; line-height: 1.2; font-weight: 800; letter-spacing: -0.02em;">${title}</h1>
-                          ${subtitle ? `<p style="margin: 12px 0 0; color: #9fb5d6; font-size: 15px; line-height: 1.55;">${subtitle}</p>` : ''}
+                          <h1 class="fp-title" style="margin: 14px 0 0; color: ${tone.titleColor}; font-size: 48px; line-height: 1.1; font-weight: 730; letter-spacing: -0.022em;">${title}</h1>
+                          ${subtitle ? `<p style="margin: 12px 0 0; color: #9aafcc; font-size: 16px; line-height: 1.52;">${subtitle}</p>` : ''}
                         </td>
                       </tr>
                       <tr>
-                        <td class="fp-card" style="padding: 24px;">
+                        <td class="fp-card" style="padding: 28px;">
                           ${options.bodyHtml}
                           ${ctaHtml}
                         </td>
@@ -408,16 +408,16 @@ function renderBrandedEmail(options: BrandedEmailOptions): string {
 
                 <tr>
                   <td style="padding: 16px 8px 0;">
-                    <p style="margin: 0 0 8px; color: #8fa8ca; font-size: 12px; line-height: 1.6;">
-                      Need help? Contact <a href="${supportEmailHref}" style="color: #67e8f9; text-decoration: underline;">${supportEmail}</a>
+                    <p style="margin: 0 0 8px; color: #8ca2c1; font-size: 12px; line-height: 1.6;">
+                      Need help? Contact <a href="${supportEmailHref}" style="color: #7bc4ff; text-decoration: underline;">${supportEmail}</a>
                     </p>
-                    <p style="margin: 0 0 8px; color: #6f85a5; font-size: 12px; line-height: 1.6;">
+                    <p style="margin: 0 0 8px; color: #6d809d; font-size: 12px; line-height: 1.6;">
                       You are receiving this email because ${escapeHtml(options.footerReason)}
                     </p>
-                    <p style="margin: 0; color: #6f85a5; font-size: 12px; line-height: 1.6;">
-                      <a href="${privacyUrl}" style="color: #7dd3fc; text-decoration: underline;">Privacy Policy</a>
+                    <p style="margin: 0; color: #6d809d; font-size: 12px; line-height: 1.6;">
+                      <a href="${privacyUrl}" style="color: #7bc4ff; text-decoration: underline;">Privacy Policy</a>
                       &nbsp;•&nbsp;
-                      <a href="${contactSalesUrl}" style="color: #7dd3fc; text-decoration: underline;">Contact Sales</a>
+                      <a href="${contactSalesUrl}" style="color: #7bc4ff; text-decoration: underline;">Contact Sales</a>
                     </p>
                   </td>
                 </tr>
