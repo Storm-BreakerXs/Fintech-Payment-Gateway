@@ -28,12 +28,21 @@ function resolveApiBaseUrl(): string {
       return 'http://localhost:3001/api'
     }
 
-    if (hostname === 'finpay.com.ng' || hostname === 'www.finpay.com.ng') {
+    if (
+      hostname === 'finpay.com.ng'
+      || hostname === 'www.finpay.com.ng'
+      || hostname === 'finpay.sbs'
+      || hostname === 'www.finpay.sbs'
+    ) {
       return 'https://api.finpay.com.ng/api'
+    }
+
+    if (hostname.endsWith('.netlify.app') || hostname.endsWith('.onrender.com')) {
+      return 'https://fintech-payment-gateway.onrender.com/api'
     }
   }
 
-  return 'https://api.finpay.com.ng/api'
+  return 'https://fintech-payment-gateway.onrender.com/api'
 }
 
 export const API_BASE_URL = resolveApiBaseUrl()

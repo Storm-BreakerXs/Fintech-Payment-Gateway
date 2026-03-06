@@ -32,6 +32,28 @@ Optional fallback:
 
 - `RESEND_API_KEY=<optional>`
 - `RESEND_FROM=FinPay Support <support@finpay.com.ng>`
+- `SALES_INBOX=sales@finpay.com.ng`
+
+Contact-sales CRM routing (optional, choose one or more):
+
+- Generic CRM webhook:
+  - `CRM_WEBHOOK_URL=<https endpoint>`
+  - `CRM_WEBHOOK_AUTH_HEADER=Authorization`
+  - `CRM_WEBHOOK_AUTH_TOKEN=<token or bearer token>`
+  - `CRM_WEBHOOK_SECRET=<hmac signing secret>`
+  - `CRM_LEAD_SOURCE_LABEL=FinPay Contact Sales Form`
+- HubSpot Forms:
+  - `HUBSPOT_PORTAL_ID=<portal id>`
+  - `HUBSPOT_FORM_ID=<form id>`
+  - `HUBSPOT_PRIVATE_APP_TOKEN=<optional private app token>`
+  - `HUBSPOT_FIELD_MONTHLY_VOLUME=monthly_volume`
+  - `HUBSPOT_FIELD_PREFERRED_CONTACT=preferred_contact`
+  - `HUBSPOT_FIELD_LEAD_SOURCE=lead_source`
+- Salesforce Lead webhook:
+  - `SALESFORCE_LEAD_WEBHOOK_URL=<flow/apex rest endpoint>`
+  - `SALESFORCE_API_TOKEN=<optional bearer token>`
+  - `SALESFORCE_FIELD_MONTHLY_VOLUME=Monthly_Volume__c`
+  - `SALESFORCE_FIELD_PREFERRED_CONTACT=Preferred_Contact__c`
 
 ## 2) Configure Render custom domain
 
@@ -91,6 +113,7 @@ Use that webhook signing secret as `STRIPE_WEBHOOK_SECRET` in Render.
 - Register a user and verify OTP email is delivered
 - Login and call authenticated endpoints
 - Ensure CORS errors are gone in browser console
+- Submit `/contact-sales` form and verify lead appears in your configured CRM destination(s)
 
 ## 8) Data storage and retrieval
 
@@ -99,8 +122,9 @@ Use that webhook signing secret as `STRIPE_WEBHOOK_SECRET` in Render.
 - Payment records are stored in MongoDB collection `transactions`.
 - Payment methods are stored in MongoDB collection `paymentmethods`.
 
-## Important production gaps
+## Important production checklist
 
-- `server/src/routes/auth.ts` still has mock KYC verification.
-- `server/src/routes/crypto.ts` still has mock swap quote logic.
-- `client/src/hooks/useWeb3.ts` has WalletConnect/Coinbase placeholders for full production wallet UX.
+- Set live values for `KYC_API_URL` and `KYC_API_KEY` in Render.
+- Set `SWAP_PROVIDER_BASE_URL` and optional `SWAP_PROVIDER_API_KEY`.
+- Keep `VITE_WALLETCONNECT_PROJECT_ID` configured in `client/.env`.
+- Confirm SMTP mailbox credentials point to your production support mailbox.

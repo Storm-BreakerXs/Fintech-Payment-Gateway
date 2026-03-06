@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
-  User,
-  Bell,
-  Shield,
-  Wallet,
-  Globe,
-  CheckCircle,
-  Loader2,
   AlertTriangle,
+  Bell,
+  CheckCircle,
+  Globe,
+  KeyRound,
+  Loader2,
+  Monitor,
+  RefreshCw,
+  Shield,
   Trash2,
+  User,
+  Wallet,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -23,6 +26,20 @@ interface MeResponse {
   user: AuthUser
 }
 
+interface SessionItem {
+  id: string
+  userAgent: string
+  ipAddress: string
+  revokedAt: string | null
+  lastSeenAt: string
+  createdAt: string
+  isCurrent: boolean
+}
+
+interface SessionsResponse {
+  sessions: SessionItem[]
+}
+
 const settingsSections: Array<{ id: SettingsSection; label: string; icon: typeof User }> = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'notifications', label: 'Notifications', icon: Bell },
@@ -31,6 +48,13 @@ const settingsSections: Array<{ id: SettingsSection; label: string; icon: typeof
   { id: 'preferences', label: 'Preferences', icon: Globe },
 ]
 
+function formatDateTime(value?: string | null): string {
+  if (!value) return 'N/A'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'N/A'
+  return date.toLocaleString()
+}
+
 export default function Settings() {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<SettingsSection>('profile')
@@ -38,9 +62,22 @@ export default function Settings() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCancelingDeletion, setIsCancelingDeletion] = useState(false)
   const [deletePassword, setDeletePassword] = useState('')
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [cancelDeletePassword, setCancelDeletePassword] = useState('')
   const [profile, setProfile] = useState<AuthUser | null>(null)
+
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false)
+  const [sessions, setSessions] = useState<SessionItem[]>([])
+  const [isProcessingTwoFa, setIsProcessingTwoFa] = useState(false)
+  const [twoFaSecret, setTwoFaSecret] = useState('')
+  const [twoFaQrCodeDataUrl, setTwoFaQrCodeDataUrl] = useState('')
+  const [twoFaEnableCode, setTwoFaEnableCode] = useState('')
+  const [twoFaRecoveryCode, setTwoFaRecoveryCode] = useState('')
+  const [twoFaDisablePassword, setTwoFaDisablePassword] = useState('')
+  const [twoFaDisableCode, setTwoFaDisableCode] = useState('')
+  const [twoFaDisableRecoveryCode, setTwoFaDisableRecoveryCode] = useState('')
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -59,35 +96,54 @@ export default function Settings() {
 
   const { isConnected, address, balance, chainId } = useWeb3Store()
 
-  useEffect(() => {
-    async function loadProfile() {
-      setIsLoading(true)
-      try {
-        const data = await apiRequest<MeResponse>('/users/me', {}, true)
-        setProfile(data.user)
-        setFirstName(data.user.firstName || '')
-        setLastName(data.user.lastName || '')
-        setPhone(data.user.phone || '')
-        setPreferredCurrency(data.user.preferredCurrency || 'USD')
-        setTimezone(data.user.timezone || 'UTC')
-        setLanguage(data.user.language || 'en')
-        setNotifications({
-          paymentConfirmations: data.user.notificationSettings?.paymentConfirmations ?? true,
-          failedTransactions: data.user.notificationSettings?.failedTransactions ?? true,
-          weeklyReports: data.user.notificationSettings?.weeklyReports ?? false,
-          priceAlerts: data.user.notificationSettings?.priceAlerts ?? true,
-          securityAlerts: data.user.notificationSettings?.securityAlerts ?? true,
-        })
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Could not load settings.'
-        toast.error(message)
-      } finally {
-        setIsLoading(false)
-      }
+  const loadProfile = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const data = await apiRequest<MeResponse>('/users/me', {}, true)
+      setProfile(data.user)
+      setFirstName(data.user.firstName || '')
+      setLastName(data.user.lastName || '')
+      setPhone(data.user.phone || '')
+      setPreferredCurrency(data.user.preferredCurrency || 'USD')
+      setTimezone(data.user.timezone || 'UTC')
+      setLanguage(data.user.language || 'en')
+      setNotifications({
+        paymentConfirmations: data.user.notificationSettings?.paymentConfirmations ?? true,
+        failedTransactions: data.user.notificationSettings?.failedTransactions ?? true,
+        weeklyReports: data.user.notificationSettings?.weeklyReports ?? false,
+        priceAlerts: data.user.notificationSettings?.priceAlerts ?? true,
+        securityAlerts: data.user.notificationSettings?.securityAlerts ?? true,
+      })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not load settings.'
+      toast.error(message)
+    } finally {
+      setIsLoading(false)
     }
-
-    loadProfile()
   }, [])
+
+  const loadSessions = useCallback(async () => {
+    setIsLoadingSessions(true)
+    try {
+      const data = await apiRequest<SessionsResponse>('/auth/sessions', {}, true)
+      setSessions(data.sessions || [])
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not load sessions.'
+      toast.error(message)
+    } finally {
+      setIsLoadingSessions(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadProfile()
+  }, [loadProfile])
+
+  useEffect(() => {
+    if (activeSection === 'security') {
+      loadSessions()
+    }
+  }, [activeSection, loadSessions])
 
   const networkName = useMemo(() => {
     if (!chainId) return 'Unknown'
@@ -161,7 +217,7 @@ export default function Settings() {
     }
   }
 
-  const handleDeleteAccount = async () => {
+  const handleScheduleAccountDeletion = async () => {
     if (deleteConfirmation.trim().toUpperCase() !== 'DELETE') {
       toast.error('Type DELETE to confirm account deletion.')
       return
@@ -173,12 +229,11 @@ export default function Settings() {
     }
 
     setIsDeleting(true)
-
     try {
-      const data = await apiRequest<{ message: string }>(
-        '/users/me',
+      const data = await apiRequest<{ message: string; scheduledFor: string }>(
+        '/users/delete-account',
         {
-          method: 'DELETE',
+          method: 'POST',
           body: JSON.stringify({
             password: deletePassword,
             confirmation: 'DELETE',
@@ -187,14 +242,176 @@ export default function Settings() {
         true
       )
 
-      clearAuthData()
-      toast.success(data.message || 'Account deleted successfully.')
-      navigate('/auth', { replace: true })
+      setProfile((prev) => {
+        if (!prev) return prev
+        const next = { ...prev, accountDeletionScheduledFor: data.scheduledFor }
+        updateStoredUser(next)
+        return next
+      })
+      setDeleteConfirmation('')
+      setDeletePassword('')
+      toast.success(data.message || 'Account deletion has been scheduled.')
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Could not delete account.'
+      const message = error instanceof Error ? error.message : 'Could not schedule account deletion.'
       toast.error(message)
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const handleCancelAccountDeletion = async () => {
+    if (!cancelDeletePassword.trim()) {
+      toast.error('Enter your password to cancel deletion.')
+      return
+    }
+
+    setIsCancelingDeletion(true)
+    try {
+      const data = await apiRequest<{ message: string }>(
+        '/users/cancel-delete-account',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            password: cancelDeletePassword,
+          }),
+        },
+        true
+      )
+
+      setProfile((prev) => {
+        if (!prev) return prev
+        const next = { ...prev, accountDeletionScheduledFor: null }
+        updateStoredUser(next)
+        return next
+      })
+      setCancelDeletePassword('')
+      toast.success(data.message || 'Account deletion canceled.')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not cancel account deletion.'
+      toast.error(message)
+    } finally {
+      setIsCancelingDeletion(false)
+    }
+  }
+
+  const handleSetupTwoFactor = async () => {
+    setIsProcessingTwoFa(true)
+    try {
+      const data = await apiRequest<{
+        secret: string
+        qrCodeDataUrl: string
+      }>(
+        '/auth/2fa/setup',
+        { method: 'POST' },
+        true
+      )
+
+      setTwoFaSecret(data.secret)
+      setTwoFaQrCodeDataUrl(data.qrCodeDataUrl)
+      setTwoFaEnableCode('')
+      setTwoFaRecoveryCode('')
+      toast.success('Scan the QR code, then submit the 6-digit code.')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not initialize 2FA setup.'
+      toast.error(message)
+    } finally {
+      setIsProcessingTwoFa(false)
+    }
+  }
+
+  const handleEnableTwoFactor = async () => {
+    if (twoFaEnableCode.trim().length !== 6) {
+      toast.error('Enter a valid 6-digit 2FA code.')
+      return
+    }
+
+    setIsProcessingTwoFa(true)
+    try {
+      const data = await apiRequest<{ message: string; recoveryCode: string }>(
+        '/auth/2fa/enable',
+        {
+          method: 'POST',
+          body: JSON.stringify({ code: twoFaEnableCode.trim() }),
+        },
+        true
+      )
+
+      setTwoFaRecoveryCode(data.recoveryCode)
+      setTwoFaSecret('')
+      setTwoFaQrCodeDataUrl('')
+      setTwoFaEnableCode('')
+      setProfile((prev) => {
+        if (!prev) return prev
+        const next = { ...prev, twoFactorEnabled: true }
+        updateStoredUser(next)
+        return next
+      })
+      toast.success(data.message || 'Two-factor authentication enabled.')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not enable two-factor authentication.'
+      toast.error(message)
+    } finally {
+      setIsProcessingTwoFa(false)
+    }
+  }
+
+  const handleDisableTwoFactor = async () => {
+    if (!twoFaDisablePassword.trim()) {
+      toast.error('Enter your password.')
+      return
+    }
+    if (!twoFaDisableCode.trim() && !twoFaDisableRecoveryCode.trim()) {
+      toast.error('Provide a 2FA code or recovery code.')
+      return
+    }
+
+    setIsProcessingTwoFa(true)
+    try {
+      const data = await apiRequest<{ message: string }>(
+        '/auth/2fa/disable',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            password: twoFaDisablePassword,
+            code: twoFaDisableCode.trim() || undefined,
+            recoveryCode: twoFaDisableRecoveryCode.trim() || undefined,
+          }),
+        },
+        true
+      )
+
+      clearAuthData()
+      toast.success(data.message || '2FA disabled. Please log in again.')
+      navigate('/auth?mode=login', { replace: true })
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not disable two-factor authentication.'
+      toast.error(message)
+    } finally {
+      setIsProcessingTwoFa(false)
+    }
+  }
+
+  const handleRevokeSession = async (sessionId: string, isCurrent: boolean) => {
+    try {
+      const data = await apiRequest<{ message: string }>(
+        '/auth/sessions/revoke',
+        {
+          method: 'POST',
+          body: JSON.stringify({ sessionId }),
+        },
+        true
+      )
+
+      toast.success(data.message || 'Session revoked successfully.')
+      await loadSessions()
+
+      if (isCurrent) {
+        clearAuthData()
+        navigate('/auth?mode=login', { replace: true })
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Could not revoke session.'
+      toast.error(message)
     }
   }
 
@@ -342,53 +559,232 @@ export default function Settings() {
                     <span className="text-slate-300">KYC status</span>
                     <span className="text-sm text-slate-200 capitalize">{profile?.kycStatus || 'pending'}</span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300">Two-factor authentication</span>
+                    <span className={`text-sm ${profile?.twoFactorEnabled ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                      {profile?.twoFactorEnabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
                 </div>
 
-                <p className="text-sm text-slate-400">
-                  Password reset and session management endpoints can be added next if you want advanced security controls.
-                </p>
+                {!profile?.twoFactorEnabled && (
+                  <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-cyan-300" />
+                      <h3 className="font-semibold">Set up 2FA</h3>
+                    </div>
+                    <p className="text-sm text-slate-400">
+                      Add an authenticator app for stronger account protection.
+                    </p>
 
-                <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-5 space-y-4">
-                  <div className="flex items-center space-x-2 text-red-300">
-                    <AlertTriangle className="w-5 h-5" />
-                    <h3 className="text-lg font-semibold">Danger Zone</h3>
+                    {!twoFaSecret && (
+                      <button
+                        onClick={handleSetupTwoFactor}
+                        disabled={isProcessingTwoFa}
+                        className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold disabled:opacity-60"
+                      >
+                        {isProcessingTwoFa ? 'Preparing...' : 'Generate 2FA Secret'}
+                      </button>
+                    )}
+
+                    {twoFaSecret && (
+                      <div className="space-y-4">
+                        {twoFaQrCodeDataUrl && (
+                          <img
+                            src={twoFaQrCodeDataUrl}
+                            alt="2FA QR code"
+                            className="w-40 h-40 rounded-lg bg-white p-2"
+                          />
+                        )}
+                        <div>
+                          <label className="block text-sm text-slate-300 mb-2">Manual secret</label>
+                          <input
+                            value={twoFaSecret}
+                            readOnly
+                            className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-mono text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm text-slate-300 mb-2">Enter 6-digit code</label>
+                          <input
+                            value={twoFaEnableCode}
+                            onChange={(e) => setTwoFaEnableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono tracking-[0.2em] text-center"
+                            placeholder="123456"
+                          />
+                        </div>
+                        <button
+                          onClick={handleEnableTwoFactor}
+                          disabled={isProcessingTwoFa}
+                          className="px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-semibold disabled:opacity-60"
+                        >
+                          {isProcessingTwoFa ? 'Enabling...' : 'Enable 2FA'}
+                        </button>
+                      </div>
+                    )}
+
+                    {twoFaRecoveryCode && (
+                      <div className="rounded-lg border border-amber-400/40 bg-amber-500/10 p-4">
+                        <p className="text-sm text-amber-200 mb-1">Recovery code (save this now)</p>
+                        <p className="font-mono text-amber-100">{twoFaRecoveryCode}</p>
+                      </div>
+                    )}
                   </div>
+                )}
 
-                  <p className="text-sm text-red-200/90">
-                    Deleting your account is permanent. Your profile, saved payment methods, and transaction history in this app will be removed.
-                  </p>
-
-                  <div>
-                    <label className="block text-sm font-medium text-red-200 mb-2">Type DELETE to confirm</label>
-                    <input
-                      type="text"
-                      value={deleteConfirmation}
-                      onChange={(e) => setDeleteConfirmation(e.target.value)}
-                      placeholder="DELETE"
-                      className="w-full px-4 py-3 bg-slate-900 border border-red-500/40 rounded-xl text-white focus:border-red-400 transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-red-200 mb-2">Current password</label>
+                {profile?.twoFactorEnabled && (
+                  <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-amber-300" />
+                      <h3 className="font-semibold">Disable 2FA</h3>
+                    </div>
+                    <p className="text-sm text-slate-400">
+                      Disabling 2FA revokes active sessions. You will need to sign in again.
+                    </p>
                     <input
                       type="password"
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder="Enter your password"
-                      className="w-full px-4 py-3 bg-slate-900 border border-red-500/40 rounded-xl text-white focus:border-red-400 transition-colors"
+                      value={twoFaDisablePassword}
+                      onChange={(e) => setTwoFaDisablePassword(e.target.value)}
+                      placeholder="Current password"
+                      className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white"
                     />
+                    <input
+                      type="text"
+                      value={twoFaDisableCode}
+                      onChange={(e) => setTwoFaDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="2FA code (or use recovery code below)"
+                      className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono"
+                    />
+                    <input
+                      type="text"
+                      value={twoFaDisableRecoveryCode}
+                      onChange={(e) => setTwoFaDisableRecoveryCode(e.target.value.toUpperCase())}
+                      placeholder="Recovery code"
+                      className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white"
+                    />
+                    <button
+                      onClick={handleDisableTwoFactor}
+                      disabled={isProcessingTwoFa}
+                      className="px-5 py-2.5 rounded-lg bg-amber-600 text-white font-semibold disabled:opacity-60"
+                    >
+                      {isProcessingTwoFa ? 'Disabling...' : 'Disable 2FA'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Monitor className="w-4 h-4 text-cyan-300" />
+                      <h3 className="font-semibold">Active Sessions</h3>
+                    </div>
+                    <button
+                      onClick={loadSessions}
+                      disabled={isLoadingSessions}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600 text-sm hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSessions ? 'animate-spin' : ''}`} />
+                      Refresh
+                    </button>
                   </div>
 
-                  <button
-                    onClick={handleDeleteAccount}
-                    disabled={isDeleting}
-                    className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-500 transition-colors disabled:opacity-60"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>{isDeleting ? 'Deleting account...' : 'Delete my account'}</span>
-                  </button>
+                  <div className="space-y-3">
+                    {sessions.map((session) => (
+                      <div
+                        key={session.id}
+                        className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                      >
+                        <div className="space-y-1 text-sm">
+                          <p className="text-slate-200">
+                            {session.isCurrent ? 'Current session' : 'Session'} · {session.userAgent || 'Unknown device'}
+                          </p>
+                          <p className="text-slate-400">IP: {session.ipAddress || 'Unknown'}</p>
+                          <p className="text-slate-400">Last seen: {formatDateTime(session.lastSeenAt)}</p>
+                        </div>
+                        <button
+                          onClick={() => handleRevokeSession(session.id, session.isCurrent)}
+                          disabled={Boolean(session.revokedAt)}
+                          className="px-4 py-2 rounded-lg border border-red-500/40 text-red-300 hover:bg-red-500/10 disabled:opacity-50"
+                        >
+                          {session.revokedAt ? 'Revoked' : (session.isCurrent ? 'Logout This Device' : 'Revoke')}
+                        </button>
+                      </div>
+                    ))}
+                    {!sessions.length && (
+                      <p className="text-sm text-slate-400">No active sessions found.</p>
+                    )}
+                  </div>
                 </div>
+
+                {profile?.accountDeletionScheduledFor ? (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-5 space-y-4">
+                    <div className="flex items-center space-x-2 text-amber-300">
+                      <AlertTriangle className="w-5 h-5" />
+                      <h3 className="text-lg font-semibold">Account Deletion Scheduled</h3>
+                    </div>
+                    <p className="text-sm text-amber-100/90">
+                      Your account is scheduled for deletion on {formatDateTime(profile.accountDeletionScheduledFor)}.
+                      Enter your password below to cancel this request.
+                    </p>
+                    <input
+                      type="password"
+                      value={cancelDeletePassword}
+                      onChange={(e) => setCancelDeletePassword(e.target.value)}
+                      placeholder="Current password"
+                      className="w-full px-4 py-3 bg-slate-900 border border-amber-500/40 rounded-xl text-white focus:border-amber-300 transition-colors"
+                    />
+                    <button
+                      onClick={handleCancelAccountDeletion}
+                      disabled={isCancelingDeletion}
+                      className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-amber-600 text-white font-semibold hover:bg-amber-500 transition-colors disabled:opacity-60"
+                    >
+                      <span>{isCancelingDeletion ? 'Canceling...' : 'Cancel Scheduled Deletion'}</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-5 space-y-4">
+                    <div className="flex items-center space-x-2 text-red-300">
+                      <AlertTriangle className="w-5 h-5" />
+                      <h3 className="text-lg font-semibold">Danger Zone</h3>
+                    </div>
+
+                    <p className="text-sm text-red-200/90">
+                      Deleting your account schedules permanent removal after a safety grace window.
+                      You can cancel during that window.
+                    </p>
+
+                    <div>
+                      <label className="block text-sm font-medium text-red-200 mb-2">Type DELETE to confirm</label>
+                      <input
+                        type="text"
+                        value={deleteConfirmation}
+                        onChange={(e) => setDeleteConfirmation(e.target.value)}
+                        placeholder="DELETE"
+                        className="w-full px-4 py-3 bg-slate-900 border border-red-500/40 rounded-xl text-white focus:border-red-400 transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-red-200 mb-2">Current password</label>
+                      <input
+                        type="password"
+                        value={deletePassword}
+                        onChange={(e) => setDeletePassword(e.target.value)}
+                        placeholder="Enter your password"
+                        className="w-full px-4 py-3 bg-slate-900 border border-red-500/40 rounded-xl text-white focus:border-red-400 transition-colors"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleScheduleAccountDeletion}
+                      disabled={isDeleting}
+                      className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-red-600 text-white font-semibold hover:bg-red-500 transition-colors disabled:opacity-60"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>{isDeleting ? 'Scheduling deletion...' : 'Schedule account deletion'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

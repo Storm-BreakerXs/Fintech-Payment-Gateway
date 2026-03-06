@@ -1,59 +1,96 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  CreditCard, 
-  Bitcoin, 
-  ArrowRight, 
-  CheckCircle, 
-  Shield,
+import {
+  ArrowRight,
+  Bitcoin,
+  CheckCircle2,
+  Copy,
+  CreditCard,
+  Loader2,
   Lock,
   RefreshCw,
-  Copy,
+  Shield,
+  AlertTriangle,
 } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import Card3D from '../components/Card3D'
-import { useWeb3Store } from '../hooks/useWeb3'
 import toast from 'react-hot-toast'
+import { useWeb3Store } from '../hooks/useWeb3'
 import { API_BASE_URL } from '../utils/api'
+import { visualAssets } from '../content/visualAssets'
 
 type PaymentMethod = 'card' | 'crypto'
-type PaymentStep = 'amount' | 'details' | 'confirm' | 'processing' | 'success'
+type PaymentStep = 'amount' | 'details' | 'confirm' | 'processing' | 'success' | 'failed'
+
+const fiatCurrencies = ['USD', 'EUR', 'GBP']
+const cryptoCurrencies = ['ETH', 'BTC', 'USDC', 'USDT']
+
+function getCurrencySymbol(currency: string): string {
+  if (currency === 'USD') return '$'
+  if (currency === 'EUR') return '€'
+  if (currency === 'GBP') return '£'
+  return ''
+}
 
 export default function Payment() {
   const [searchParams] = useSearchParams()
+  const { isConnected, connect } = useWeb3Store()
+
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card')
   const [step, setStep] = useState<PaymentStep>('amount')
   const [amount, setAmount] = useState('')
   const [currency, setCurrency] = useState('USD')
   const [transactionId, setTransactionId] = useState('')
-  const [cardData, setCardData] = useState({
-    number: '',
-    holder: '',
-    expiry: '',
-    cvv: '',
-  })
-  const [isFlipped, setIsFlipped] = useState(false)
+  const [failureReason, setFailureReason] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [merchantName, setMerchantName] = useState('FinPay Gateway')
+  const [reference, setReference] = useState('')
+  const [processingMessage, setProcessingMessage] = useState('Preparing payment...')
   const [cryptoAddress] = useState('0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb')
 
-  const { isConnected, connect } = useWeb3Store()
-
-  const fiatCurrencies = ['USD', 'EUR', 'GBP']
-  const cryptoCurrencies = ['ETH', 'BTC', 'USDC', 'USDT']
   const currencies = paymentMethod === 'card' ? fiatCurrencies : cryptoCurrencies
 
   useEffect(() => {
     const status = searchParams.get('status')
     const sessionId = searchParams.get('session_id')
+    const retry = searchParams.get('retry')
+    const queryAmount = searchParams.get('amount')
+    const queryCurrency = searchParams.get('currency')
+
+    if (queryAmount && Number(queryAmount) > 0) {
+      setAmount(Number(queryAmount).toFixed(2))
+    }
+
+    if (queryCurrency) {
+      const normalized = queryCurrency.toUpperCase()
+      if (fiatCurrencies.includes(normalized)) {
+        setCurrency(normalized)
+        setPaymentMethod('card')
+      }
+      if (cryptoCurrencies.includes(normalized)) {
+        setCurrency(normalized)
+        setPaymentMethod('crypto')
+      }
+    }
+
+    if (retry === '1') {
+      setStep('confirm')
+    }
 
     if (status === 'success') {
       setTransactionId(sessionId || '')
+      setFailureReason('')
       setStep('success')
     }
 
     if (status === 'cancel') {
-      setStep('confirm')
-      toast.error('Payment was canceled.')
+      setFailureReason('Payment was canceled before completion.')
+      setStep('failed')
+    }
+
+    if (status === 'error' || status === 'failed') {
+      setFailureReason('Payment could not be completed. Please try again.')
+      setStep('failed')
     }
   }, [searchParams])
 
@@ -66,15 +103,30 @@ export default function Payment() {
     }
   }, [paymentMethod, currency])
 
+  const totalAmount = useMemo(() => {
+    const parsed = Number(amount || '0')
+    if (Number.isNaN(parsed) || parsed <= 0) return 0
+    return paymentMethod === 'crypto' ? parsed + 2.5 : parsed
+  }, [amount, paymentMethod])
+
   const handleAmountSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (parseFloat(amount) > 0) {
-      setStep('details')
+    const parsedAmount = Number(amount)
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error('Enter a valid payment amount.')
+      return
     }
+    setStep('details')
   }
 
-  const handleCardSubmit = (e: React.FormEvent) => {
+  const handleDetailsSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (paymentMethod === 'card' && !customerEmail.trim()) {
+      toast.error('Enter a customer email for receipt delivery.')
+      return
+    }
+
     setStep('confirm')
   }
 
@@ -83,415 +135,345 @@ export default function Payment() {
 
     if (paymentMethod === 'card') {
       try {
+        setProcessingMessage('Redirecting to secure Stripe checkout...')
+
         const response = await fetch(`${API_BASE_URL}/payments/card/checkout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            amount: parseFloat(amount),
+            amount: Number(amount),
             currency,
-            merchantName: 'FinPay Gateway',
+            merchantName,
+            customerEmail,
+            reference,
           }),
         })
 
-        const data = await response.json()
+        const payload = await response.json()
 
-        if (!response.ok || !data.checkoutUrl) {
-          throw new Error(data?.message || data?.error || 'Unable to start card payment.')
+        if (!response.ok || !payload?.checkoutUrl) {
+          throw new Error(payload?.message || payload?.error || 'Unable to initialize card checkout.')
         }
 
-        window.location.href = data.checkoutUrl
+        window.location.href = payload.checkoutUrl
         return
       } catch (error: any) {
-        toast.error(error.message || 'Card payment initialization failed.')
-        setStep('confirm')
+        const message = error?.message || 'Card payment initialization failed.'
+        setFailureReason(message)
+        toast.error(message)
+        setStep('failed')
         return
       }
     }
 
-    // Keep crypto as an in-app demo confirmation.
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    setTransactionId(`0x${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`)
+    if (!isConnected) {
+      setFailureReason('Connect a wallet before confirming crypto payment.')
+      toast.error('Connect your wallet before confirming crypto payment.')
+      setStep('failed')
+      return
+    }
+
+    setProcessingMessage('Validating blockchain transaction confirmation...')
+    await new Promise((resolve) => setTimeout(resolve, 2500))
+
+    const pseudoTx = `0x${Math.random().toString(16).slice(2)}${Date.now().toString(16)}`
+    setTransactionId(pseudoTx)
+    setFailureReason('')
     setStep('success')
   }
 
-  const copyAddress = () => {
-    navigator.clipboard.writeText(cryptoAddress)
-    toast.success('Address copied to clipboard!')
+  const copyAddress = async () => {
+    await navigator.clipboard.writeText(cryptoAddress)
+    toast.success('Wallet address copied.')
   }
 
-  const formatCardNumber = (value: string) => {
-    const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
-    const matches = v.match(/\d{4,16}/g)
-    const match = (matches && matches[0]) || ''
-    const parts = []
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4))
-    }
-    if (parts.length) {
-      return parts.join(' ')
-    }
-    return v
+  const resetFlow = () => {
+    setStep('amount')
+    setAmount('')
+    setCurrency(paymentMethod === 'card' ? 'USD' : 'ETH')
+    setTransactionId('')
+    setFailureReason('')
+    setReference('')
   }
+
+  const statusImage = step === 'success'
+    ? visualAssets.paymentSuccess
+    : step === 'failed'
+      ? visualAssets.paymentFailure
+      : visualAssets.heroCheckout
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      {/* Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold mb-4">Make a Payment</h1>
-        <p className="text-slate-400">Choose your preferred payment method</p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="mb-10 text-center">
+        <h1 className="text-4xl sm:text-5xl font-bold text-white">Payment Checkout</h1>
+        <p className="mt-3 text-slate-300">Reliable payment UX with secure processor handoff and explicit status states.</p>
       </div>
 
-      {/* Progress Steps */}
-      <div className="flex items-center justify-center mb-12">
-        <div className="flex items-center space-x-4">
-          {['Amount', 'Details', 'Confirm', 'Complete'].map((label, index) => {
-            const stepIndex = ['amount', 'details', 'confirm', 'success'].indexOf(step)
-            const isActive = index <= stepIndex
-            const isCurrent = index === stepIndex
-
-            return (
-              <div key={label} className="flex items-center">
-                <div className={`flex items-center justify-center w-10 h-10 rounded-full font-semibold transition-all ${
-                  isActive 
-                    ? 'bg-emerald-500 text-white' 
-                    : 'bg-slate-800 text-slate-500'
-                } ${isCurrent ? 'ring-4 ring-emerald-500/30' : ''}`}>
-                  {isActive && index < stepIndex ? (
-                    <CheckCircle className="w-5 h-5" />
-                  ) : (
-                    index + 1
-                  )}
-                </div>
-                {index < 3 && (
-                  <div className={`w-16 h-1 mx-2 transition-all ${
-                    index < stepIndex ? 'bg-emerald-500' : 'bg-slate-800'
-                  }`} />
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-12">
-        {/* Left side - Payment Form */}
+      <div className="grid lg:grid-cols-[1.05fr,0.95fr] gap-10">
         <div>
+          <div className="grid grid-cols-4 gap-2 mb-8">
+            {['Amount', 'Details', 'Review', 'Complete'].map((label, index) => {
+              const normalizedStep = step === 'processing' || step === 'failed' ? 'confirm' : step
+              const currentStep = ['amount', 'details', 'confirm', 'success'].indexOf(normalizedStep)
+              const reached = index <= currentStep
+              return (
+                <div key={label} className="space-y-2">
+                  <div className={`h-1.5 rounded-full ${reached ? 'bg-cyan-400' : 'bg-slate-800'}`} />
+                  <p className={`text-xs ${reached ? 'text-cyan-100' : 'text-slate-500'}`}>{label}</p>
+                </div>
+              )
+            })}
+          </div>
+
           <AnimatePresence mode="wait">
             {step === 'amount' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
+              <motion.form
+                key="amount"
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="glass rounded-2xl p-8 border border-slate-700"
+                exit={{ opacity: 0, y: -14 }}
+                onSubmit={handleAmountSubmit}
+                className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-7 space-y-6"
               >
-                <h2 className="text-2xl font-bold mb-6">Enter Amount</h2>
+                <h2 className="text-2xl font-semibold text-white">Choose payment method</h2>
 
-                {/* Payment Method Tabs */}
-                <div className="flex space-x-4 mb-8">
+                <div className="grid sm:grid-cols-2 gap-3">
                   <button
+                    type="button"
                     onClick={() => setPaymentMethod('card')}
-                    className={`flex-1 flex items-center justify-center space-x-2 px-6 py-4 rounded-xl border transition-all ${
+                    className={`rounded-xl border px-4 py-4 text-left transition-colors ${
                       paymentMethod === 'card'
-                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                        ? 'border-cyan-300/60 bg-cyan-400/10 text-cyan-100'
+                        : 'border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <CreditCard className="w-5 h-5" />
-                    <span className="font-medium">Card</span>
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold"><CreditCard className="w-4 h-4" /> Card</p>
+                    <p className="mt-2 text-xs text-slate-300">Secure hosted checkout by Stripe.</p>
                   </button>
+
                   <button
+                    type="button"
                     onClick={() => setPaymentMethod('crypto')}
-                    className={`flex-1 flex items-center justify-center space-x-2 px-6 py-4 rounded-xl border transition-all ${
+                    className={`rounded-xl border px-4 py-4 text-left transition-colors ${
                       paymentMethod === 'crypto'
-                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'
+                        ? 'border-cyan-300/60 bg-cyan-400/10 text-cyan-100'
+                        : 'border-slate-700 bg-slate-800/70 text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <Bitcoin className="w-5 h-5" />
-                    <span className="font-medium">Crypto</span>
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold"><Bitcoin className="w-4 h-4" /> Crypto</p>
+                    <p className="mt-2 text-xs text-slate-300">Wallet transfer with confirmation state tracking.</p>
                   </button>
                 </div>
 
-                <form onSubmit={handleAmountSubmit}>
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-slate-400 mb-2">
-                      Amount
-                    </label>
-                    <div className="flex space-x-4">
-                      <div className="flex-1 relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                          {currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''}
-                        </span>
+                <div className="grid sm:grid-cols-[1fr,190px] gap-3">
+                  <label className="block">
+                    <span className="text-sm text-slate-300">Amount</span>
+                    <div className="mt-2 relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{getCurrencySymbol(currency)}</span>
+                      <input
+                        type="number"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        min="0.01"
+                        step="0.01"
+                        required
+                        className="w-full rounded-xl border border-slate-700 bg-slate-800/75 py-3 pl-8 pr-3 text-white"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </label>
+                  <label className="block">
+                    <span className="text-sm text-slate-300">Currency</span>
+                    <select
+                      value={currency}
+                      onChange={(e) => setCurrency(e.target.value)}
+                      className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-800/75 px-3 py-3 text-white"
+                    >
+                      {currencies.map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-3 font-semibold text-slate-950"
+                >
+                  <span>Continue</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </motion.form>
+            )}
+
+            {step === 'details' && (
+              <motion.form
+                key="details"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -14 }}
+                onSubmit={handleDetailsSubmit}
+                className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-7 space-y-6"
+              >
+                <h2 className="text-2xl font-semibold text-white">Payment details</h2>
+
+                {paymentMethod === 'card' ? (
+                  <>
+                    <p className="rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100 inline-flex items-center gap-2">
+                      <Lock className="w-4 h-4" />
+                      Card credentials are entered only on Stripe-hosted checkout.
+                    </p>
+
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="text-sm text-slate-300">Customer email</span>
                         <input
-                          type="number"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder="0.00"
-                          className="w-full pl-10 pr-4 py-4 bg-slate-800 border border-slate-700 rounded-xl text-white text-2xl font-mono placeholder-slate-600 focus:border-emerald-500 transition-colors"
+                          type="email"
+                          value={customerEmail}
+                          onChange={(e) => setCustomerEmail(e.target.value)}
                           required
-                          min="0.01"
-                          step="0.01"
+                          className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-800/75 px-3 py-3 text-white"
+                          placeholder="customer@company.com"
                         />
-                      </div>
-                      <select
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value)}
-                        className="px-4 py-4 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:border-emerald-500 transition-colors"
-                      >
-                        {currencies.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={!amount || parseFloat(amount) <= 0}
-                    className="w-full flex items-center justify-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed btn-lift"
-                  >
-                    <span>Continue</span>
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
-                </form>
-
-                <div className="mt-6 flex items-center justify-center space-x-2 text-sm text-slate-500">
-                  <Lock className="w-4 h-4" />
-                  <span>Secure, encrypted payment processing</span>
-                </div>
-              </motion.div>
-            )}
-
-            {step === 'details' && paymentMethod === 'card' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="glass rounded-2xl p-8 border border-slate-700"
-              >
-                <h2 className="text-2xl font-bold mb-6">Card Details</h2>
-
-                <form onSubmit={handleCardSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-2">
-                      Card Number
-                    </label>
-                    <input
-                      type="text"
-                      value={cardData.number}
-                      onChange={(e) => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
-                      onFocus={() => setIsFlipped(false)}
-                      placeholder="1234 5678 9012 3456"
-                      maxLength={19}
-                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono placeholder-slate-600 focus:border-emerald-500 transition-colors"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-2">
-                      Card Holder
-                    </label>
-                    <input
-                      type="text"
-                      value={cardData.holder}
-                      onChange={(e) => setCardData({ ...cardData, holder: e.target.value.toUpperCase() })}
-                      onFocus={() => setIsFlipped(false)}
-                      placeholder="JOHN DOE"
-                      className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:border-emerald-500 transition-colors"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">
-                        Expiry Date
                       </label>
-                      <input
-                        type="text"
-                        value={cardData.expiry}
-                        onChange={(e) => {
-                          let value = e.target.value.replace(/\D/g, '')
-                          if (value.length >= 2) {
-                            value = value.slice(0, 2) + '/' + value.slice(2, 4)
-                          }
-                          setCardData({ ...cardData, expiry: value })
-                        }}
-                        onFocus={() => setIsFlipped(false)}
-                        placeholder="MM/YY"
-                        maxLength={5}
-                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono placeholder-slate-600 focus:border-emerald-500 transition-colors"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">
-                        CVV
-                      </label>
-                      <input
-                        type="password"
-                        value={cardData.cvv}
-                        onChange={(e) => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                        onFocus={() => setIsFlipped(true)}
-                        onBlur={() => setIsFlipped(false)}
-                        placeholder="123"
-                        maxLength={4}
-                        className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono placeholder-slate-600 focus:border-emerald-500 transition-colors"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex space-x-4 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => setStep('amount')}
-                      className="flex-1 px-6 py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-medium hover:bg-slate-700 transition-all"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 flex items-center justify-center space-x-2 px-6 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
-                    >
-                      <span>Review</span>
-                      <ArrowRight className="w-5 h-5" />
-                    </button>
-                  </div>
-                </form>
-              </motion.div>
-            )}
-
-            {step === 'details' && paymentMethod === 'crypto' && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="glass rounded-2xl p-8 border border-slate-700"
-              >
-                <h2 className="text-2xl font-bold mb-6">Crypto Payment</h2>
-
-                {!isConnected ? (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                      <Bitcoin className="w-8 h-8 text-slate-400" />
-                    </div>
-                    <p className="text-slate-400 mb-6">Connect your wallet to continue</p>
-                    <button
-                      onClick={() => connect('metamask')}
-                      className="flex items-center justify-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift mx-auto"
-                    >
-                      <span>Connect Wallet</span>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="flex justify-center">
-                      <div className="p-4 bg-white rounded-xl">
-                        <QRCodeSVG 
-                          value={cryptoAddress} 
-                          size={200}
-                          level="M"
-                          includeMargin={false}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-400 mb-2">
-                        Send {amount} {currency} to:
-                      </label>
-                      <div className="flex space-x-2">
+                      <label className="block">
+                        <span className="text-sm text-slate-300">Merchant descriptor</span>
                         <input
                           type="text"
-                          value={cryptoAddress}
-                          readOnly
-                          className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white font-mono text-sm"
+                          value={merchantName}
+                          onChange={(e) => setMerchantName(e.target.value)}
+                          className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-800/75 px-3 py-3 text-white"
+                          placeholder="FinPay Gateway"
                         />
+                      </label>
+                    </div>
+
+                    <label className="block">
+                      <span className="text-sm text-slate-300">Reference (optional)</span>
+                      <input
+                        type="text"
+                        value={reference}
+                        onChange={(e) => setReference(e.target.value)}
+                        className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-800/75 px-3 py-3 text-white"
+                        placeholder="Invoice #1023"
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    {!isConnected ? (
+                      <div className="rounded-xl border border-slate-700 bg-slate-800/70 p-6 text-center">
+                        <p className="text-slate-300 mb-4">Connect your wallet before sending funds.</p>
                         <button
-                          onClick={copyAddress}
-                          className="px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-slate-400 hover:text-white transition-colors"
+                          type="button"
+                          onClick={() => connect('metamask')}
+                          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 font-semibold text-slate-950"
                         >
-                          <Copy className="w-5 h-5" />
+                          <span>Connect Wallet</span>
                         </button>
                       </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2 text-sm text-slate-500">
-                      <Shield className="w-4 h-4" />
-                      <span>Payment will be detected automatically</span>
-                    </div>
-
-                    <div className="flex space-x-4">
-                      <button
-                        onClick={() => setStep('amount')}
-                        className="flex-1 px-6 py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-medium hover:bg-slate-700 transition-all"
-                      >
-                        Back
-                      </button>
-                      <button
-                        onClick={() => setStep('confirm')}
-                        className="flex-1 flex items-center justify-center space-x-2 px-6 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
-                      >
-                        <span>I've Sent</span>
-                        <ArrowRight className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-[220px,1fr] gap-4 items-start">
+                        <div className="rounded-xl bg-white p-3 w-fit mx-auto sm:mx-0">
+                          <QRCodeSVG value={cryptoAddress} size={190} includeMargin={false} />
+                        </div>
+                        <div className="space-y-3">
+                          <p className="text-sm text-slate-300">Send exactly {amount || '0.00'} {currency} to this address:</p>
+                          <div className="flex gap-2">
+                            <input
+                              value={cryptoAddress}
+                              readOnly
+                              className="flex-1 rounded-xl border border-slate-700 bg-slate-800/75 px-3 py-3 text-white font-mono text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={copyAddress}
+                              className="rounded-xl border border-slate-700 bg-slate-800/75 px-3 py-3 text-slate-200"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-slate-400">Confirmation can take 30-90 seconds depending on network congestion.</p>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
-              </motion.div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setStep('amount')}
+                    className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-3 text-slate-200"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 font-semibold text-slate-950"
+                  >
+                    <span>Review Payment</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </motion.form>
             )}
 
             {step === 'confirm' && (
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                key="confirm"
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="glass rounded-2xl p-8 border border-slate-700"
+                exit={{ opacity: 0, y: -14 }}
+                className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-7 space-y-6"
               >
-                <h2 className="text-2xl font-bold mb-6">Confirm Payment</h2>
+                <h2 className="text-2xl font-semibold text-white">Review and confirm</h2>
 
-                <div className="space-y-4 mb-8">
-                  <div className="flex justify-between py-3 border-b border-slate-800">
-                    <span className="text-slate-400">Amount</span>
-                    <span className="text-xl font-bold text-white">
-                      {currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''}
-                      {amount} {currency}
-                    </span>
+                <div className="rounded-xl border border-slate-700 bg-slate-800/70 p-4 space-y-3 text-sm">
+                  <div className="flex items-center justify-between text-slate-200">
+                    <span>Amount</span>
+                    <span className="font-semibold">{getCurrencySymbol(currency)}{amount} {currency}</span>
                   </div>
-                  <div className="flex justify-between py-3 border-b border-slate-800">
-                    <span className="text-slate-400">Payment Method</span>
-                    <span className="text-white capitalize">{paymentMethod}</span>
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span>Payment method</span>
+                    <span className="capitalize">{paymentMethod}</span>
                   </div>
-                  <div className="flex justify-between py-3 border-b border-slate-800">
-                    <span className="text-slate-400">Network Fee</span>
-                    <span className="text-white">{paymentMethod === 'crypto' ? '~$2.50' : '$0.00'}</span>
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span>Processor</span>
+                    <span>{paymentMethod === 'card' ? 'Stripe Hosted Checkout' : 'Blockchain Transfer'}</span>
                   </div>
-                  <div className="flex justify-between py-3">
-                    <span className="text-slate-400">Total</span>
-                    <span className="text-2xl font-bold text-emerald-400">
-                      {currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : ''}
-                      {parseFloat(amount) + (paymentMethod === 'crypto' ? 2.5 : 0)} {currency}
-                    </span>
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span>Estimated fee</span>
+                    <span>{paymentMethod === 'card' ? 'Handled by processor' : '~$2.50 network fee'}</span>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-slate-700 pt-3 text-white">
+                    <span>Total</span>
+                    <span className="text-lg font-bold">{getCurrencySymbol(currency)}{totalAmount.toFixed(2)} {currency}</span>
                   </div>
                 </div>
 
-                <div className="flex space-x-4">
+                {paymentMethod === 'card' && (
+                  <p className="text-sm text-slate-300 inline-flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-cyan-300" />
+                    You will be redirected to Stripe to securely enter card information.
+                  </p>
+                )}
+
+                <div className="flex gap-3">
                   <button
                     onClick={() => setStep('details')}
-                    className="flex-1 px-6 py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-medium hover:bg-slate-700 transition-all"
+                    className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-3 text-slate-200"
                   >
                     Back
                   </button>
                   <button
                     onClick={handleConfirm}
-                    className="flex-1 flex items-center justify-center space-x-2 px-6 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 font-semibold text-slate-950"
                   >
-                    <Lock className="w-5 h-5" />
-                    <span>Confirm Payment</span>
+                    <Lock className="w-4 h-4" />
+                    <span>{paymentMethod === 'card' ? 'Continue to Secure Checkout' : 'Confirm Transfer'}</span>
                   </button>
                 </div>
               </motion.div>
@@ -499,89 +481,123 @@ export default function Payment() {
 
             {step === 'processing' && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
+                key="processing"
+                initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="glass rounded-2xl p-12 border border-slate-700 text-center"
+                className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-10 text-center"
               >
-                <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-6">
-                  <RefreshCw className="w-10 h-10 text-emerald-400 animate-spin" />
+                <div className="w-16 h-16 rounded-full bg-cyan-400/15 flex items-center justify-center mx-auto">
+                  <Loader2 className="w-8 h-8 text-cyan-300 animate-spin" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Processing Payment</h2>
-                <p className="text-slate-400">Please wait while we process your transaction...</p>
+                <h2 className="text-2xl font-semibold text-white mt-5">Processing payment</h2>
+                <p className="text-slate-300 mt-2">{processingMessage}</p>
               </motion.div>
             )}
 
             {step === 'success' && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
+                key="success"
+                initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="glass rounded-2xl p-12 border border-emerald-500/30 text-center"
+                className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-8 text-center"
               >
-                <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle className="w-10 h-10 text-emerald-400" />
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-300" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Payment Successful!</h2>
-                <p className="text-slate-400 mb-6">Your transaction has been completed successfully.</p>
-                <div className="bg-slate-800/50 rounded-xl p-4 mb-6">
-                  <div className="text-sm text-slate-400 mb-1">Transaction ID</div>
-                  <div className="font-mono text-emerald-400">{transactionId || 'pending'}</div>
+                <h2 className="text-2xl font-semibold text-white mt-4">Payment successful</h2>
+                <p className="text-slate-200 mt-2">Your transaction has been completed and recorded.</p>
+                <div className="mt-5 rounded-xl border border-emerald-300/25 bg-slate-900/55 p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Transaction ID</p>
+                  <p className="text-emerald-300 font-mono text-sm mt-2 break-all">{transactionId || 'Pending confirmation'}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setStep('amount')
-                    setAmount('')
-                    setCurrency('USD')
-                    setTransactionId('')
-                    setCardData({ number: '', holder: '', expiry: '', cvv: '' })
-                  }}
-                  className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
-                >
-                  <span>Make Another Payment</span>
-                  <ArrowRight className="w-5 h-5" />
-                </button>
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={resetFlow}
+                    className="rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 font-semibold text-slate-950"
+                  >
+                    Make another payment
+                  </button>
+                  <Link
+                    to="/transactions"
+                    className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-3 text-slate-200"
+                  >
+                    View transactions
+                  </Link>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 'failed' && (
+              <motion.div
+                key="failed"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="rounded-2xl border border-amber-300/35 bg-amber-400/10 p-8 text-center"
+              >
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto">
+                  <AlertTriangle className="w-8 h-8 text-amber-200" />
+                </div>
+                <h2 className="text-2xl font-semibold text-white mt-4">Payment not completed</h2>
+                <p className="text-slate-200 mt-2">{failureReason || 'The payment could not be completed.'}</p>
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  <button
+                    onClick={() => setStep('confirm')}
+                    className="rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 font-semibold text-slate-950"
+                  >
+                    Retry payment
+                  </button>
+                  <button
+                    onClick={resetFlow}
+                    className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-3 text-slate-200"
+                  >
+                    Start over
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Right side - 3D Card Preview */}
-        <div className="hidden lg:block">
-          <div className="sticky top-32">
-            <Card3D
-              cardNumber={cardData.number || '•••• •••• •••• ••••'}
-              cardHolder={cardData.holder || 'YOUR NAME'}
-              expiryDate={cardData.expiry || 'MM/YY'}
-              cvv={cardData.cvv || '•••'}
-              isFlipped={isFlipped}
-              cardType="visa"
-            />
-
-            <div className="mt-8 glass rounded-2xl p-6 border border-slate-700">
-              <div className="flex items-center space-x-3 mb-4">
-                <Shield className="w-5 h-5 text-emerald-400" />
-                <span className="font-semibold">Secure Payment</span>
-              </div>
-              <ul className="space-y-2 text-sm text-slate-400">
-                <li className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span>256-bit SSL encryption</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span>PCI DSS compliant</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span>Fraud protection</span>
-                </li>
-                <li className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span>Instant confirmation</span>
-                </li>
-              </ul>
+        <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+          <div className="rounded-3xl border border-slate-700/80 bg-slate-900/60 overflow-hidden">
+            <img src={statusImage.src} alt={statusImage.alt} className="h-64 w-full object-cover" loading="lazy" />
+            <div className="p-5">
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Checkout Feel</p>
+              <h3 className="text-lg font-semibold text-white mt-2">Clear trust cues at every step</h3>
+              <p className="text-sm text-slate-300 mt-2">
+                The redesigned flow emphasizes secure processor handoff, explicit transaction states, and reduced user confusion.
+              </p>
             </div>
           </div>
-        </div>
+
+          <div className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-5">
+            <h3 className="text-white font-semibold mb-4 inline-flex items-center gap-2">
+              <Shield className="w-4 h-4 text-cyan-300" />
+              Trust Signals
+            </h3>
+            <ul className="space-y-2 text-sm text-slate-300">
+              <li className="inline-flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 text-cyan-300" />
+                Stripe-hosted card entry for sensitive data handling.
+              </li>
+              <li className="inline-flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 text-cyan-300" />
+                Explicit pending, success, canceled, and failed payment states.
+              </li>
+              <li className="inline-flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 text-cyan-300" />
+                Retry-safe navigation back to transaction history and checkout.
+              </li>
+            </ul>
+          </div>
+
+          {step !== 'processing' && (
+            <div className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-5 text-sm text-slate-300 inline-flex items-start gap-2">
+              <RefreshCw className="w-4 h-4 mt-0.5 text-cyan-300" />
+              Card flow redirects to external processor, then returns to this page with completion status.
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   )

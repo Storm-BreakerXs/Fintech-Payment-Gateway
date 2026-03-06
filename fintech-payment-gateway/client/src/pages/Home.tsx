@@ -1,248 +1,402 @@
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import { 
-  Shield, 
-  Zap, 
-  Globe, 
-  Lock, 
+import {
   ArrowRight,
-  CreditCard,
-  Bitcoin,
-  CheckCircle
+  CheckCircle2,
+  Globe2,
+  Lock,
+  Rocket,
+  Shield,
+  Timer,
+  Zap,
 } from 'lucide-react'
-import Card3D from '../components/Card3D'
 import { isAuthenticated } from '../utils/auth'
+import { visualAssets } from '../content/visualAssets'
 
-const features = [
+interface MetricItem {
+  label: string
+  value: string
+  note: string
+}
+
+interface FeatureItem {
+  title: string
+  description: string
+  bullets: string[]
+}
+
+interface UseCaseItem {
+  title: string
+  summary: string
+  impact: string
+}
+
+const metrics: MetricItem[] = [
   {
-    icon: Shield,
-    title: 'Bank-Grade Security',
-    description: '256-bit encryption, multi-sig wallets, and real-time fraud detection.',
+    label: 'Uptime Target',
+    value: '99.95%',
+    note: 'Observed with active monitoring and failover-first architecture.',
   },
   {
-    icon: Zap,
-    title: 'Instant Settlement',
-    description: 'Payments settle in seconds, not days. 24/7 availability.',
+    label: 'Payment Rails',
+    value: 'Card + Crypto',
+    note: 'Run checkout, settlement, and tracking from one integration.',
   },
   {
-    icon: Globe,
-    title: 'Global Coverage',
-    description: 'Accept payments from 190+ countries in 135+ currencies.',
+    label: 'Go-Live Speed',
+    value: '< 2 Weeks',
+    note: 'Teams launch faster with hosted checkout and API webhooks.',
   },
   {
-    icon: Lock,
-    title: 'Compliance Ready',
-    description: 'Built-in KYC/AML, PCI DSS compliance, and audit trails.',
+    label: 'Regions',
+    value: 'Global',
+    note: 'Cross-border support with USD, EUR, and GBP card acceptance.',
   },
 ]
 
-const stats = [
-  { value: '$2.5B+', label: 'Volume Processed' },
-  { value: '50K+', label: 'Active Merchants' },
-  { value: '99.99%', label: 'Uptime' },
-  { value: '<0.5%', label: 'Fraud Rate' },
+const features: FeatureItem[] = [
+  {
+    title: 'Checkout That Converts',
+    description: 'A cleaner flow built for trust and higher completion rates.',
+    bullets: [
+      'Card redirect via Stripe hosted checkout',
+      'Crypto payment mode with wallet flow and live status',
+      'Focused mobile-first payment experience',
+    ],
+  },
+  {
+    title: 'Visibility for Operations',
+    description: 'Your teams can see live status, failures, and recovery actions quickly.',
+    bullets: [
+      'Dashboard with payment method and performance views',
+      'Transaction filters by status, type, and merchant',
+      'Export-ready records for finance and reconciliation',
+    ],
+  },
+  {
+    title: 'Security and Compliance',
+    description: 'Trust signals are embedded across every critical surface.',
+    bullets: [
+      'Transport security and hardened API middleware',
+      'KYC-aware route controls on sensitive operations',
+      'Auditable transaction state model for compliance teams',
+    ],
+  },
 ]
+
+const useCases: UseCaseItem[] = [
+  {
+    title: 'Marketplaces',
+    summary: 'Collect from buyers and settle faster to sellers.',
+    impact: 'Reduce payment operations friction and support disputes faster.',
+  },
+  {
+    title: 'Cross-Border Commerce',
+    summary: 'Accept cards while supporting crypto settlement paths.',
+    impact: 'Expand internationally with a single payment orchestration layer.',
+  },
+  {
+    title: 'Fintech Platforms',
+    summary: 'Launch branded checkout and API-first transaction tooling.',
+    impact: 'Ship new corridors without re-platforming core payments.',
+  },
+]
+
+const integrationLogos = [
+  { name: 'Stripe', src: 'https://cdn.simpleicons.org/stripe/ffffff' },
+  { name: 'Ethereum', src: 'https://cdn.simpleicons.org/ethereum/ffffff' },
+  { name: 'Polygon', src: 'https://cdn.simpleicons.org/polygon/ffffff' },
+  { name: 'Coinbase', src: 'https://cdn.simpleicons.org/coinbase/ffffff' },
+  { name: 'WalletConnect', src: 'https://cdn.simpleicons.org/walletconnect/ffffff' },
+  { name: 'Chainlink', src: 'https://cdn.simpleicons.org/chainlink/ffffff' },
+]
+
+const stagger = {
+  hidden: { opacity: 0, y: 18 },
+  show: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, delay },
+  }),
+}
 
 export default function Home() {
   const authenticated = isAuthenticated()
 
   return (
-    <div className="space-y-20 pb-20">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        {/* Background effects */}
-        <div className="absolute inset-0 grid-bg opacity-50" />
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
+    <div className="space-y-24 pb-24">
+      <section className="relative overflow-hidden border-b border-slate-700/50">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,0.18),transparent_42%),radial-gradient(circle_at_85%_10%,rgba(59,130,246,0.22),transparent_35%)]" />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
+          <div className="grid lg:grid-cols-[1.1fr,0.9fr] gap-10 items-center">
+            <motion.div initial="hidden" animate="show" variants={stagger} custom={0.05} className="space-y-7">
+              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/35 bg-cyan-400/10 px-4 py-2 text-xs uppercase tracking-[0.2em] text-cyan-100">
+                <span className="w-2 h-2 rounded-full bg-cyan-300" />
+                Fintech Payment Operating System
+              </span>
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-32">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left content */}
-            <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
-              className="space-y-8"
-            >
-              <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-sm text-emerald-400 font-medium">Now supporting Layer 2 networks</span>
-              </div>
-
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight">
-                The Future of{' '}
-                <span className="gradient-text">Payments</span>
-                {' '}is Here
+              <h1 className="text-4xl sm:text-6xl leading-tight text-white">
+                Build a payment experience users
+                {' '}
+                <span className="gradient-text">actually trust</span>
+                {' '}
+                at first click.
               </h1>
 
-              <p className="text-xl text-slate-400 max-w-lg">
-                Accept fiat and crypto payments with a single integration. 
-                Enterprise-grade security with Web3 flexibility.
+              <p className="text-slate-200/90 text-lg max-w-2xl">
+                FinPay unifies secure checkout, transaction visibility, and settlement-ready operations.
+                Ship a faster payment product without compromising reliability.
               </p>
 
               <div className="flex flex-wrap gap-4">
                 <Link
-                  to="/payment"
-                  className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
+                  to={authenticated ? '/dashboard' : '/auth?mode=register'}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-7 py-3.5 font-semibold text-slate-950 transition-all hover:shadow-xl hover:shadow-cyan-500/25"
                 >
-                  <span>Start Accepting Payments</span>
+                  <span>{authenticated ? 'Open Dashboard' : 'Start Integration'}</span>
                   <ArrowRight className="w-5 h-5" />
                 </Link>
                 <Link
-                  to="/dashboard"
-                  className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-slate-800 border border-slate-700 text-white font-semibold hover:bg-slate-700 transition-all"
+                  to="/payment"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-500/60 bg-slate-900/40 px-7 py-3.5 font-semibold text-slate-100 transition-colors hover:bg-slate-800/70"
                 >
-                  <span>View Dashboard</span>
+                  <Rocket className="w-5 h-5" />
+                  <span>Try Live Checkout</span>
                 </Link>
               </div>
 
-              <div className="flex items-center space-x-6 text-sm text-slate-500">
-                <span className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span>No setup fees</span>
+              <div className="grid sm:grid-cols-3 gap-3 text-sm text-slate-300">
+                <span className="inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-900/55 px-3 py-2">
+                  <Lock className="w-4 h-4 text-cyan-300" />
+                  Secure redirect checkout
                 </span>
-                <span className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span>Instant activation</span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-900/55 px-3 py-2">
+                  <Zap className="w-4 h-4 text-cyan-300" />
+                  Real-time transaction states
                 </span>
-                <span className="flex items-center space-x-2">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  <span>24/7 support</span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-900/55 px-3 py-2">
+                  <Shield className="w-4 h-4 text-cyan-300" />
+                  Compliance-ready controls
                 </span>
               </div>
             </motion.div>
 
-            {/* Right content - 3D Card */}
             <motion.div
-              initial={{ opacity: 0, x: 50 }}
+              initial={{ opacity: 0, x: 24 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative"
+              transition={{ duration: 0.5, delay: 0.15 }}
+              className="space-y-4"
             >
-              <div className="relative z-10">
-                <Card3D 
-                  cardNumber="4532 1234 5678 9012"
-                  cardHolder="JOHN DOE"
-                  expiryDate="12/28"
+              <div className="overflow-hidden rounded-3xl border border-slate-600/60 bg-slate-900/60 shadow-2xl">
+                <img
+                  src={visualAssets.heroCheckout.src}
+                  alt={visualAssets.heroCheckout.alt}
+                  className="h-[420px] w-full object-cover"
+                  loading="eager"
                 />
               </div>
-
-              {/* Floating elements */}
-              <motion.div
-                animate={{ y: [-10, 10, -10] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute -top-8 -right-8 glass rounded-2xl p-4 border border-emerald-500/30"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                    <Bitcoin className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-slate-400">Crypto Payment</div>
-                    <div className="text-lg font-bold text-emerald-400">+ $1,234.56</div>
-                  </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                animate={{ y: [10, -10, 10] }}
-                transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute -bottom-8 -left-8 glass rounded-2xl p-4 border border-blue-500/30"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
-                    <CreditCard className="w-5 h-5 text-blue-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-slate-400">Card Payment</div>
-                    <div className="text-lg font-bold text-blue-400">+ $567.89</div>
-                  </div>
-                </div>
-              </motion.div>
+              <p className="text-xs text-slate-400">
+                Built for modern fintech teams: clear UX, strong trust cues, and reliable payment operations.
+              </p>
             </motion.div>
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-          {stats.map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              viewport={{ once: true }}
-              className="text-center"
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {metrics.map((metric, index) => (
+            <motion.article
+              key={metric.label}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.4 }}
+              variants={stagger}
+              custom={index * 0.06}
+              className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-5"
             >
-              <div className="text-4xl sm:text-5xl font-bold gradient-text mb-2">{stat.value}</div>
-              <div className="text-slate-400">{stat.label}</div>
-            </motion.div>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">{metric.label}</p>
+              <p className="mt-3 text-2xl font-bold text-white">{metric.value}</p>
+              <p className="mt-2 text-sm text-slate-400">{metric.note}</p>
+            </motion.article>
           ))}
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Why Choose FinPay?</h2>
-          <p className="text-slate-400 max-w-2xl mx-auto">
-            Everything you need to accept payments globally, with the security and compliance enterprises demand.
-          </p>
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-7">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white">Trusted Integration Ecosystem</h2>
+          <span className="text-sm text-slate-400">Works with major payment and Web3 infrastructure</span>
         </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature, index) => {
-            const Icon = feature.icon
-            return (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                viewport={{ once: true }}
-                whileHover={{ y: -5 }}
-                className="glass rounded-2xl p-6 border border-slate-700 hover:border-emerald-500/50 transition-all"
-              >
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 flex items-center justify-center mb-4">
-                  <Icon className="w-6 h-6 text-emerald-400" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-slate-400 text-sm">{feature.description}</p>
-              </motion.div>
-            )
-          })}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {integrationLogos.map((item) => (
+            <div
+              key={item.name}
+              className="rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-4 flex items-center gap-3"
+            >
+              <img src={item.src} alt={`${item.name} logo`} className="w-5 h-5" loading="lazy" />
+              <span className="text-sm text-slate-200">{item.name}</span>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600/20 to-blue-600/20 border border-emerald-500/30 p-12 text-center"
-        >
-          <div className="absolute inset-0 grid-bg opacity-30" />
-          <div className="relative">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              {authenticated ? 'You Are Signed In' : 'Ready to Get Started?'}
-            </h2>
-            <p className="text-slate-400 max-w-xl mx-auto mb-8">
-              {authenticated
-                ? 'Open your dashboard to track transactions, balances, and account activity.'
-                : 'Join thousands of businesses already using FinPay to power their payments. Start accepting payments in minutes.'}
-            </p>
-            <Link
-              to={authenticated ? '/dashboard' : '/auth?mode=register'}
-              className="inline-flex items-center space-x-2 px-8 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold hover:shadow-lg hover:shadow-emerald-500/25 transition-all btn-lift"
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-8 items-stretch">
+        <article className="rounded-3xl border border-slate-700/80 bg-slate-900/60 p-7 sm:p-8">
+          <h3 className="text-2xl font-bold text-white mb-3">Global Payment Coverage</h3>
+          <p className="text-slate-300 mb-6">
+            Support local card familiarity and digital-asset flexibility from one operational backend.
+          </p>
+          <div className="space-y-3 text-sm text-slate-300">
+            <p className="inline-flex items-center gap-2"><Globe2 className="w-4 h-4 text-cyan-300" /> Card checkout in USD, EUR, GBP.</p>
+            <p className="inline-flex items-center gap-2"><Timer className="w-4 h-4 text-cyan-300" /> Live status tracking and transaction history.</p>
+            <p className="inline-flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-300" /> Production-ready APIs for growth teams.</p>
+          </div>
+          <img
+            src={visualAssets.globalNetwork.src}
+            alt={visualAssets.globalNetwork.alt}
+            className="mt-6 h-56 w-full rounded-2xl object-cover border border-slate-700/70"
+            loading="lazy"
+          />
+        </article>
+
+        <article className="rounded-3xl border border-slate-700/80 bg-slate-900/60 p-7 sm:p-8">
+          <h3 className="text-2xl font-bold text-white mb-3">Security and Compliance Confidence</h3>
+          <p className="text-slate-300 mb-6">
+            Clear risk posture and resilient defaults for payment data, APIs, and customer operations.
+          </p>
+          <div className="space-y-3 text-sm text-slate-300">
+            <p className="inline-flex items-center gap-2"><Shield className="w-4 h-4 text-cyan-300" /> Hardened backend middleware and request validation.</p>
+            <p className="inline-flex items-center gap-2"><Lock className="w-4 h-4 text-cyan-300" /> Encrypted secret handling and route protection.</p>
+            <p className="inline-flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-cyan-300" /> Audit-friendly event and transaction states.</p>
+          </div>
+          <img
+            src={visualAssets.securityOps.src}
+            alt={visualAssets.securityOps.alt}
+            className="mt-6 h-56 w-full rounded-2xl object-cover border border-slate-700/70"
+            loading="lazy"
+          />
+        </article>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-[1fr,1fr] gap-8 items-start">
+        <div className="space-y-4">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white">What You Can Ship With FinPay</h2>
+          <p className="text-slate-300 max-w-xl">
+            This release focuses on practical UX: reduced friction, visible trust, and fewer dead ends for users.
+          </p>
+          <img
+            src={visualAssets.merchantVerticals.src}
+            alt={visualAssets.merchantVerticals.alt}
+            className="h-80 w-full rounded-2xl border border-slate-700/70 object-cover"
+            loading="lazy"
+          />
+        </div>
+
+        <div className="space-y-4">
+          {features.map((feature, index) => (
+            <motion.article
+              key={feature.title}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.4 }}
+              variants={stagger}
+              custom={index * 0.08}
+              className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-6"
             >
-              <span>{authenticated ? 'Open Dashboard' : 'Create Free Account'}</span>
-              <ArrowRight className="w-5 h-5" />
+              <h3 className="text-xl font-semibold text-white">{feature.title}</h3>
+              <p className="mt-2 text-sm text-slate-300">{feature.description}</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-300">
+                {feature.bullets.map((bullet) => (
+                  <li key={bullet} className="flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-cyan-300 mt-0.5" />
+                    <span>{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            </motion.article>
+          ))}
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6">Primary Implementation Outcomes</h2>
+        <div className="grid md:grid-cols-3 gap-4">
+          {useCases.map((useCase, index) => (
+            <motion.article
+              key={useCase.title}
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.4 }}
+              variants={stagger}
+              custom={index * 0.08}
+              className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-6"
+            >
+              <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">{useCase.title}</p>
+              <p className="mt-3 text-white font-semibold">{useCase.summary}</p>
+              <p className="mt-2 text-sm text-slate-300">{useCase.impact}</p>
+            </motion.article>
+          ))}
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-7">
+        <article className="rounded-3xl border border-slate-700/80 bg-slate-900/60 overflow-hidden">
+          <img
+            src={visualAssets.developerApi.src}
+            alt={visualAssets.developerApi.alt}
+            className="h-64 w-full object-cover"
+            loading="lazy"
+          />
+          <div className="p-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Developer Experience</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">API-first integration with cleaner defaults</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Better error states, explicit payment status handling, and production routing behavior for frontend API calls.
+            </p>
+          </div>
+        </article>
+
+        <article className="rounded-3xl border border-slate-700/80 bg-slate-900/60 overflow-hidden">
+          <img
+            src={visualAssets.supportTeam.src}
+            alt={visualAssets.supportTeam.alt}
+            className="h-64 w-full object-cover"
+            loading="lazy"
+          />
+          <div className="p-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Customer Operations</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">Support-ready transaction views and exports</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              Teams can quickly identify pending and failed transactions, export data, and route customers back to retry flows.
+            </p>
+          </div>
+        </article>
+      </section>
+
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="rounded-3xl border border-cyan-300/30 bg-gradient-to-r from-cyan-400/10 via-blue-500/10 to-emerald-400/10 p-8 sm:p-10 text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold text-white">Ready to ship a stronger payment product?</h2>
+          <p className="text-slate-200 mt-4 max-w-2xl mx-auto">
+            We have now implemented the foundation: real card redirect processing, better trust UX, clearer states,
+            and richer visual storytelling.
+          </p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <Link
+              to="/payment"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-3 font-semibold text-slate-950"
+            >
+              <span>Test Payment Flow</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link
+              to="/contact-sales"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-500/60 bg-slate-900/40 px-6 py-3 font-semibold text-slate-100"
+            >
+              <span>Contact Sales</span>
             </Link>
           </div>
-        </motion.div>
+        </div>
       </section>
     </div>
   )

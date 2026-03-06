@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import {
+  ArrowRight,
   Search,
   Download,
   CreditCard,
@@ -8,9 +10,11 @@ import {
   ExternalLink,
   Loader2,
   DollarSign,
+  RefreshCw,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { apiRequest } from '../utils/api'
+import { visualAssets } from '../content/visualAssets'
 
 type TransactionType = 'card' | 'crypto' | 'bank'
 type TransactionStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded'
@@ -123,6 +127,31 @@ export default function Transactions() {
         </button>
       </div>
 
+      <div className="mb-6 rounded-3xl border border-slate-700/80 bg-slate-900/60 overflow-hidden">
+        <div className="grid lg:grid-cols-[1.15fr,0.85fr]">
+          <div className="p-6 sm:p-8">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">History and Recovery</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Track failures and retry safely</h2>
+            <p className="mt-3 text-sm text-slate-300 max-w-2xl">
+              Transaction history now includes direct retry routes for failed card payments and clearer status visibility.
+            </p>
+            <Link
+              to="/payment"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2.5 text-sm font-semibold text-slate-950"
+            >
+              <span>New Payment</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <img
+            src={visualAssets.paymentFailure.src}
+            alt={visualAssets.paymentFailure.alt}
+            className="h-full min-h-[210px] w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      </div>
+
       <div className="glass rounded-2xl p-4 border border-slate-700 mb-6">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
@@ -229,26 +258,41 @@ export default function Transactions() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          {tx.txHash ? (
-                            <a
-                              href={`https://etherscan.io/tx/${tx.txHash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 transition-colors"
-                            >
-                              <span className="text-sm">View</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          ) : (
-                            <span className="text-slate-500 text-sm">-</span>
-                          )}
+                          <div className="flex items-center gap-3">
+                            {tx.txHash ? (
+                              <a
+                                href={`https://etherscan.io/tx/${tx.txHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center space-x-1 text-emerald-400 hover:text-emerald-300 transition-colors"
+                              >
+                                <span className="text-sm">View</span>
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            ) : (
+                              <span className="text-slate-500 text-sm">-</span>
+                            )}
+
+                            {tx.status === 'failed' && tx.type === 'card' && (
+                              <Link
+                                to={`/payment?retry=1&amount=${tx.amount}&currency=${tx.currency}`}
+                                className="inline-flex items-center gap-1 text-cyan-200 hover:text-cyan-100 text-sm"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>Retry</span>
+                              </Link>
+                            )}
+                          </div>
                         </td>
                       </motion.tr>
                     ))
                   ) : (
                     <tr>
                       <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
-                        No transactions matched your filters.
+                        <div className="space-y-2">
+                          <p>No transactions matched your filters.</p>
+                          <Link to="/payment" className="text-cyan-200 hover:text-cyan-100 transition-colors">Start a new payment</Link>
+                        </div>
                       </td>
                     </tr>
                   )}

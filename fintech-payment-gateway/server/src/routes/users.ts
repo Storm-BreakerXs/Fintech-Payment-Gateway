@@ -1,11 +1,13 @@
 import express, { Response } from 'express'
 import bcrypt from 'bcryptjs'
 import { body, validationResult } from 'express-validator'
+import { config } from '../config/env'
 import { authenticateToken } from '../middleware/auth'
 import { asyncHandler } from '../middleware/errorHandler'
 import { strictRateLimiter } from '../middleware/rateLimiter'
+import { forwardSalesLeadToCrm } from '../services/crmProvider'
+import { sendAccountDeletionScheduledEmail, sendSalesInquiryEmail } from '../utils/email'
 import { logger } from '../utils/logger'
-import { PaymentMethod, Transaction, User } from '../utils/database'
 
 const router = express.Router()
 
@@ -29,13 +31,15 @@ function formatUser(user: any) {
     emailVerified: user.emailVerified,
     kycStatus: user.kycStatus,
     walletAddress: user.walletAddress,
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
+    accountDeletionScheduledFor: user.accountDeletionScheduledFor,
   }
 }
 
 // Get current user profile
 router.get('/me', authenticateToken, asyncHandler(async (req: any, res: Response) => {
   res.json({
-    user: formatUser(req.user)
+    user: formatUser(req.user),
   })
 }))
 
@@ -102,11 +106,52 @@ router.patch('/me', authenticateToken, [
 
   res.json({
     message: 'Profile updated successfully.',
-    user: formatUser(req.user)
+    user: formatUser(req.user),
   })
 }))
 
-// Delete current user account
+async function scheduleAccountDeletion(req: any, res: Response): Promise<void> {
+  const password = String(req.body.password || '')
+  const isValidPassword = await bcrypt.compare(password, req.user.password)
+  if (!isValidPassword) {
+    res.status(401).json({ error: 'Invalid password.' })
+    return
+  }
+
+  if (req.user.accountDeletionScheduledFor) {
+    res.json({
+      message: 'Account deletion is already scheduled.',
+      scheduledFor: req.user.accountDeletionScheduledFor,
+    })
+    return
+  }
+
+  const now = new Date()
+  const scheduledFor = new Date(now.getTime() + config.accountDeletionGraceHours * 60 * 60 * 1000)
+
+  req.user.accountDeletionRequestedAt = now
+  req.user.accountDeletionScheduledFor = scheduledFor
+  req.user.accountDeletionTokenHash = null
+  await req.user.save()
+
+  try {
+    await sendAccountDeletionScheduledEmail(
+      req.user.email,
+      req.user.firstName,
+      scheduledFor
+    )
+  } catch (error: any) {
+    logger.error(`Failed to send deletion schedule email for ${req.user.email}: ${error.message}`)
+  }
+
+  logger.warn(`Account deletion scheduled for ${req.user.email} at ${scheduledFor.toISOString()}`)
+  res.json({
+    message: `Account deletion scheduled. You can cancel any time in the next ${config.accountDeletionGraceHours} hour(s).`,
+    scheduledFor,
+  })
+}
+
+// Schedule account deletion with grace window
 router.delete('/me', authenticateToken, strictRateLimiter, [
   body('password').isLength({ min: 8 }),
   body('confirmation').equals('DELETE'),
@@ -119,24 +164,115 @@ router.delete('/me', authenticateToken, strictRateLimiter, [
     })
   }
 
+  await scheduleAccountDeletion(req, res)
+}))
+
+// Alias endpoint for clients that avoid DELETE request bodies
+router.post('/delete-account', authenticateToken, strictRateLimiter, [
+  body('password').isLength({ min: 8 }),
+  body('confirmation').equals('DELETE'),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Invalid account deletion request. Provide your password and type DELETE to confirm.',
+      errors: errors.array(),
+    })
+  }
+
+  await scheduleAccountDeletion(req, res)
+}))
+
+// Cancel scheduled account deletion
+router.post('/cancel-delete-account', authenticateToken, strictRateLimiter, [
+  body('password').isLength({ min: 8 }),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Provide your password to cancel account deletion.',
+      errors: errors.array(),
+    })
+  }
+
+  if (!req.user.accountDeletionScheduledFor) {
+    return res.status(400).json({ error: 'No account deletion is currently scheduled.' })
+  }
+
   const password = String(req.body.password || '')
   const isValidPassword = await bcrypt.compare(password, req.user.password)
   if (!isValidPassword) {
     return res.status(401).json({ error: 'Invalid password.' })
   }
 
-  const userId = req.user._id
-  const userEmail = req.user.email
+  req.user.accountDeletionRequestedAt = null
+  req.user.accountDeletionScheduledFor = null
+  req.user.accountDeletionTokenHash = null
+  await req.user.save()
 
-  await Promise.all([
-    Transaction.deleteMany({ userId }),
-    PaymentMethod.deleteMany({ userId }),
-    User.findByIdAndDelete(userId),
-  ])
+  logger.info(`Account deletion canceled for ${req.user.email}`)
+  res.json({ message: 'Scheduled account deletion has been canceled.' })
+}))
 
-  logger.warn(`User account deleted: ${userEmail}`)
+router.post('/contact-sales', strictRateLimiter, [
+  body('fullName').trim().isLength({ min: 2, max: 120 }),
+  body('workEmail').isEmail().normalizeEmail(),
+  body('companyName').trim().isLength({ min: 2, max: 160 }),
+  body('role').trim().isLength({ min: 2, max: 120 }),
+  body('country').trim().isLength({ min: 2, max: 80 }),
+  body('monthlyVolume').trim().isLength({ min: 2, max: 80 }),
+  body('preferredContact').trim().isIn(['Email', 'Phone', 'WhatsApp', 'Telegram']),
+  body('message').trim().isLength({ min: 10, max: 2000 }),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: 'Please provide valid contact details.',
+      errors: errors.array(),
+    })
+  }
 
-  res.json({ message: 'Your account has been permanently deleted.' })
+  const payload = {
+    fullName: String(req.body.fullName || '').trim(),
+    workEmail: String(req.body.workEmail || '').trim().toLowerCase(),
+    companyName: String(req.body.companyName || '').trim(),
+    role: String(req.body.role || '').trim(),
+    country: String(req.body.country || '').trim(),
+    monthlyVolume: String(req.body.monthlyVolume || '').trim(),
+    preferredContact: String(req.body.preferredContact || '').trim(),
+    message: String(req.body.message || '').trim(),
+    sourcePath: String(req.body.sourcePath || '/contact-sales').trim().slice(0, 160),
+    referrer: String(req.headers.referer || req.headers.referrer || '').trim().slice(0, 300),
+    userAgent: String(req.headers['user-agent'] || '').trim().slice(0, 300),
+    ipAddress: String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim().slice(0, 64),
+    submittedAt: new Date().toISOString(),
+  }
+
+  try {
+    await sendSalesInquiryEmail(payload)
+  } catch (error: any) {
+    logger.error(`Failed to deliver contact-sales request for ${payload.workEmail}: ${error.message}`)
+  }
+
+  try {
+    const crmResult = await forwardSalesLeadToCrm(payload)
+    if (crmResult.successfulProviders.length > 0) {
+      logger.info(
+        `Contact-sales CRM sync succeeded for ${payload.workEmail} via ${crmResult.successfulProviders.join(', ')}`
+      )
+    } else if (crmResult.attemptedProviders.length > 0) {
+      logger.warn(
+        `Contact-sales CRM sync had no success for ${payload.workEmail}. Failed: ${crmResult.failedProviders.map((item) => `${item.provider}: ${item.reason}`).join(' | ')}`
+      )
+    }
+  } catch (error: any) {
+    logger.error(`Contact-sales CRM sync failed for ${payload.workEmail}: ${error.message}`)
+  }
+
+  logger.info(`Contact sales request submitted: ${payload.workEmail} (${payload.companyName})`)
+  res.status(202).json({
+    message: 'Thanks, your request has been submitted. Our sales team will reach out shortly.',
+  })
 }))
 
 export default router

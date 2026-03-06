@@ -1,4 +1,4 @@
-import { ethers } from 'ethers'
+import type { BrowserProvider, JsonRpcSigner } from 'ethers'
 import toast from 'react-hot-toast'
 import { create } from 'zustand'
 import type { CoinbaseWalletProvider } from '@coinbase/wallet-sdk'
@@ -18,8 +18,8 @@ interface InjectedEthereumProvider extends Eip1193Provider {
 }
 
 interface Web3State {
-  provider: ethers.BrowserProvider | null
-  signer: ethers.JsonRpcSigner | null
+  provider: BrowserProvider | null
+  signer: JsonRpcSigner | null
   address: string | null
   balance: string | null
   chainId: number | null
@@ -45,6 +45,7 @@ const DEFAULT_RPC_URLS: Record<number, string> = {
 }
 
 type CoinbaseWalletSDKCtor = (typeof import('@coinbase/wallet-sdk'))['default']
+type EthersModule = typeof import('ethers')
 
 let coinbaseWalletSdk: InstanceType<CoinbaseWalletSDKCtor> | null = null
 let coinbaseWalletProvider: CoinbaseWalletProvider | null = null
@@ -53,6 +54,14 @@ let activeExternalProvider: Eip1193Provider | null = null
 let activeAccountsChangedHandler: ((...args: unknown[]) => void) | null = null
 let activeChainChangedHandler: ((...args: unknown[]) => void) | null = null
 let activeWalletType: WalletType | null = null
+let ethersModulePromise: Promise<EthersModule> | null = null
+
+function getEthersModule(): Promise<EthersModule> {
+  if (!ethersModulePromise) {
+    ethersModulePromise = import('ethers')
+  }
+  return ethersModulePromise
+}
 
 function getInjectedProviders(): InjectedEthereumProvider[] {
   if (!window.ethereum) {
@@ -239,7 +248,8 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
         }
       }
 
-      const provider = new ethers.BrowserProvider(externalProvider)
+      const { BrowserProvider, formatEther } = await getEthersModule()
+      const provider = new BrowserProvider(externalProvider)
       const accounts = await provider.send('eth_requestAccounts', [])
 
       if (accounts.length === 0) {
@@ -256,7 +266,7 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
       }
 
       const balanceWei = await provider.getBalance(address)
-      const balance = ethers.formatEther(balanceWei)
+      const balance = formatEther(balanceWei)
 
       activeAccountsChangedHandler = (...args: unknown[]) => {
         const nextAccountsRaw = args[0]
@@ -395,8 +405,9 @@ export const useWeb3Store = create<Web3State>((set, get) => ({
     if (!provider || !address) return
 
     try {
+      const { formatEther } = await getEthersModule()
       const balanceWei = await provider.getBalance(address)
-      const balance = ethers.formatEther(balanceWei)
+      const balance = formatEther(balanceWei)
       set({ balance })
     } catch (error) {
       console.error('Error fetching balance:', error)

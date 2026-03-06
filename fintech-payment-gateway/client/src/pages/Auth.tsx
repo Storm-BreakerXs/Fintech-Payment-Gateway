@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { API_BASE_URL } from '../utils/api'
 import { AuthUser, setAuthData } from '../utils/auth'
 
-type AuthMode = 'login' | 'register'
+type AuthMode = 'login' | 'register' | 'forgot' | 'reset'
 
 function getErrorMessage(payload: any): string {
   if (payload?.error && typeof payload.error === 'string') return payload.error
@@ -22,9 +22,17 @@ function persistAuth(data: any) {
   }
 }
 
+function parseAuthMode(value: string | null): AuthMode {
+  if (value === 'login' || value === 'register' || value === 'forgot' || value === 'reset') {
+    return value
+  }
+  return 'register'
+}
+
 export default function Auth() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [isResending, setIsResending] = useState(false)
@@ -32,7 +40,7 @@ export default function Auth() {
   const [otp, setOtp] = useState('')
 
   const mode = useMemo<AuthMode>(
-    () => (searchParams.get('mode') === 'login' ? 'login' : 'register'),
+    () => parseAuthMode(searchParams.get('mode')),
     [searchParams]
   )
   const postAuthRedirect = useMemo(() => {
@@ -48,23 +56,47 @@ export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [recoveryCode, setRecoveryCode] = useState('')
+
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetCode, setResetCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+
+  useEffect(() => {
+    if (mode !== 'reset') {
+      return
+    }
+
+    const queryEmail = searchParams.get('email')
+    const queryCode = searchParams.get('code')
+    if (queryEmail) setResetEmail(queryEmail)
+    if (queryCode) setResetCode(queryCode)
+  }, [mode, searchParams])
 
   useEffect(() => {
     setPassword('')
     setConfirmPassword('')
     setOtp('')
     setVerificationEmail('')
+    setTwoFactorCode('')
+    setRecoveryCode('')
   }, [mode])
 
   const switchMode = (nextMode: AuthMode) => {
     const nextParams = new URLSearchParams(searchParams)
     nextParams.set('mode', nextMode)
+    if (nextMode !== 'reset') {
+      nextParams.delete('code')
+    }
     setSearchParams(nextParams)
     setOtp('')
     setVerificationEmail('')
   }
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleAuthSubmit = async (e: FormEvent) => {
     e.preventDefault()
 
     if (mode === 'register' && password !== confirmPassword) {
@@ -77,7 +109,12 @@ export default function Auth() {
     const endpoint = mode === 'register' ? '/auth/register' : '/auth/login'
     const payload = mode === 'register'
       ? { firstName, lastName, email, password }
-      : { email, password }
+      : {
+          email,
+          password,
+          ...(twoFactorCode.trim() ? { twoFactorCode: twoFactorCode.trim() } : {}),
+          ...(recoveryCode.trim() ? { recoveryCode: recoveryCode.trim() } : {}),
+        }
 
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -97,6 +134,11 @@ export default function Auth() {
           return
         }
 
+        if (data?.code === 'TWO_FACTOR_REQUIRED') {
+          toast.error('Enter your 2FA code or recovery code to continue.')
+          return
+        }
+
         throw new Error(getErrorMessage(data))
       }
 
@@ -108,10 +150,103 @@ export default function Auth() {
       }
 
       persistAuth(data)
-      toast.success('Logged in successfully.')
+      if (data?.recoveryCodeRotated) {
+        toast.success(`Logged in. New recovery code: ${data.recoveryCodeRotated}`)
+      } else {
+        toast.success('Logged in successfully.')
+      }
       navigate(postAuthRedirect)
     } catch (error: any) {
       toast.error(error.message || 'Authentication failed.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleForgotPassword = async (e: FormEvent) => {
+    e.preventDefault()
+    if (!forgotEmail.trim()) {
+      toast.error('Enter your email address.')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail.trim() }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data))
+      }
+
+      toast.success(data?.message || 'If the email exists, a reset code has been sent.')
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.set('mode', 'reset')
+      nextParams.set('email', forgotEmail.trim())
+      nextParams.delete('code')
+      setSearchParams(nextParams)
+      setResetEmail(forgotEmail.trim())
+      setResetCode('')
+      setNewPassword('')
+      setConfirmNewPassword('')
+    } catch (error: any) {
+      toast.error(error.message || 'Unable to request password reset.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleResetPassword = async (e: FormEvent) => {
+    e.preventDefault()
+
+    if (newPassword.length < 8) {
+      toast.error('New password must be at least 8 characters.')
+      return
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      toast.error('Passwords do not match.')
+      return
+    }
+
+    if (resetCode.trim().length !== 6) {
+      toast.error('Enter the 6-digit reset code.')
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: resetEmail.trim(),
+          code: resetCode.trim(),
+          newPassword,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(getErrorMessage(data))
+      }
+
+      toast.success(data?.message || 'Password reset successful. Please log in.')
+      const nextParams = new URLSearchParams(searchParams)
+      nextParams.set('mode', 'login')
+      nextParams.delete('code')
+      nextParams.delete('email')
+      setSearchParams(nextParams)
+      setEmail(resetEmail.trim())
+      setPassword('')
+      setTwoFactorCode('')
+      setRecoveryCode('')
+    } catch (error: any) {
+      toast.error(error.message || 'Password reset failed.')
     } finally {
       setIsSubmitting(false)
     }
@@ -185,6 +320,8 @@ export default function Auth() {
     }
   }
 
+  const showPrimaryAuthForm = mode === 'login' || mode === 'register'
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-14">
       <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-stretch">
@@ -193,12 +330,16 @@ export default function Auth() {
             <Shield className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold mb-4">
-            {mode === 'register' ? 'Create Your Account' : 'Welcome Back'}
+            {mode === 'register' && 'Create Your Account'}
+            {mode === 'login' && 'Welcome Back'}
+            {mode === 'forgot' && 'Reset Access'}
+            {mode === 'reset' && 'Set New Password'}
           </h1>
           <p className="text-slate-300 mb-8">
-            {mode === 'register'
-              ? 'Set up your FinPay merchant account to start accepting payments.'
-              : 'Sign in to manage payments, monitor transactions, and update settings.'}
+            {mode === 'register' && 'Set up your FinPay merchant account to start accepting payments.'}
+            {mode === 'login' && 'Sign in to manage payments, monitor transactions, and update settings.'}
+            {mode === 'forgot' && 'Request a secure reset code to recover your account password.'}
+            {mode === 'reset' && 'Enter the reset code from your inbox and choose a new password.'}
           </p>
 
           <div className="space-y-4 text-slate-300">
@@ -208,11 +349,11 @@ export default function Auth() {
             </div>
             <div className="flex items-start space-x-3">
               <span className="w-2 h-2 rounded-full bg-emerald-500 mt-2" />
-              <span>Unified dashboard for card and crypto payment operations.</span>
+              <span>Password reset with time-bound verification codes.</span>
             </div>
             <div className="flex items-start space-x-3">
               <span className="w-2 h-2 rounded-full bg-emerald-500 mt-2" />
-              <span>Developer-ready API workflow for production integration.</span>
+              <span>Optional two-factor login with recovery code support.</span>
             </div>
           </div>
         </div>
@@ -220,131 +361,281 @@ export default function Auth() {
         <div className="glass rounded-2xl border border-slate-700 p-6 sm:p-10">
           {!verificationEmail ? (
             <>
-              <div className="flex rounded-xl p-1 bg-slate-800/80 border border-slate-700 mb-6">
-                <button
-                  type="button"
-                  onClick={() => switchMode('register')}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                    mode === 'register'
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  Create Account
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchMode('login')}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                    mode === 'login'
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'text-slate-300 hover:text-white'
-                  }`}
-                >
-                  Login
-                </button>
-              </div>
+              {showPrimaryAuthForm && (
+                <div className="flex rounded-xl p-1 bg-slate-800/80 border border-slate-700 mb-6">
+                  <button
+                    type="button"
+                    onClick={() => switchMode('register')}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                      mode === 'register'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    Create Account
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                      mode === 'login'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : 'text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    Login
+                  </button>
+                </div>
+              )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {mode === 'register' && (
-                  <div className="grid sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm text-slate-300 mb-2">First Name</label>
-                      <div className="relative">
-                        <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          required
-                          className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
-                          placeholder="Jane"
-                        />
+              {showPrimaryAuthForm && (
+                <form onSubmit={handleAuthSubmit} className="space-y-4">
+                  {mode === 'register' && (
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-slate-300 mb-2">First Name</label>
+                        <div className="relative">
+                          <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                            required
+                            className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                            placeholder="Jane"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-300 mb-2">Last Name</label>
+                        <div className="relative">
+                          <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            required
+                            className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                            placeholder="Doe"
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm text-slate-300 mb-2">Last Name</label>
-                      <div className="relative">
-                        <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                          value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
-                          required
-                          className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
-                          placeholder="Doe"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                <div>
-                  <label className="block text-sm text-slate-300 mb-2">Email Address</label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
-                      placeholder="name@company.com"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm text-slate-300 mb-2">Password</label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={8}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
-                      placeholder="Minimum 8 characters"
-                    />
-                  </div>
-                </div>
-
-                {mode === 'register' && (
                   <div>
-                    <label className="block text-sm text-slate-300 mb-2">Confirm Password</label>
+                    <label className="block text-sm text-slate-300 mb-2">Email Address</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                        placeholder="name@company.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-300 mb-2">Password</label>
                     <div className="relative">
                       <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input
                         type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         required
                         minLength={8}
                         className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
-                        placeholder="Re-enter your password"
+                        placeholder="Minimum 8 characters"
                       />
                     </div>
                   </div>
-                )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full mt-2 inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold disabled:opacity-60"
-                >
-                  <span>{isSubmitting ? 'Please wait...' : mode === 'register' ? 'Create Account' : 'Sign In'}</span>
-                  {!isSubmitting && <ArrowRight className="w-4 h-4" />}
-                </button>
-              </form>
+                  {mode === 'register' && (
+                    <div>
+                      <label className="block text-sm text-slate-300 mb-2">Confirm Password</label>
+                      <div className="relative">
+                        <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          required
+                          minLength={8}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                          placeholder="Re-enter your password"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-              <p className="text-sm text-slate-400 mt-6">
-                {mode === 'register' ? 'Already have an account?' : "Don't have an account?"}{' '}
-                <Link
-                  to={mode === 'register' ? '/auth?mode=login' : '/auth?mode=register'}
-                  className="text-emerald-400 hover:text-emerald-300"
-                >
-                  {mode === 'register' ? 'Login here' : 'Create one now'}
-                </Link>
-              </p>
+                  {mode === 'login' && (
+                    <>
+                      <div>
+                        <label className="block text-sm text-slate-300 mb-2">2FA Code (if enabled)</label>
+                        <input
+                          type="text"
+                          value={twoFactorCode}
+                          onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          maxLength={6}
+                          className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono tracking-[0.2em] text-center focus:border-emerald-500"
+                          placeholder="123456"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-300 mb-2">Recovery Code (alternative)</label>
+                        <input
+                          type="text"
+                          value={recoveryCode}
+                          onChange={(e) => setRecoveryCode(e.target.value.toUpperCase())}
+                          className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                          placeholder="ABC123-DEF456"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(email)
+                          switchMode('forgot')
+                        }}
+                        className="text-sm text-cyan-300 hover:text-cyan-200"
+                      >
+                        Forgot password?
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full mt-2 inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold disabled:opacity-60"
+                  >
+                    <span>{isSubmitting ? 'Please wait...' : mode === 'register' ? 'Create Account' : 'Sign In'}</span>
+                    {!isSubmitting && <ArrowRight className="w-4 h-4" />}
+                  </button>
+                </form>
+              )}
+
+              {mode === 'forgot' && (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-slate-300 mb-2">Email Address</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="email"
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        required
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                        placeholder="name@company.com"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full mt-2 inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold disabled:opacity-60"
+                  >
+                    <span>{isSubmitting ? 'Please wait...' : 'Send Reset Code'}</span>
+                    {!isSubmitting && <ArrowRight className="w-4 h-4" />}
+                  </button>
+                </form>
+              )}
+
+              {mode === 'reset' && (
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-slate-300 mb-2">Email Address</label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        required
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                        placeholder="name@company.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-300 mb-2">Reset Code</label>
+                    <input
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      required
+                      minLength={6}
+                      maxLength={6}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white font-mono tracking-[0.35em] text-center text-lg focus:border-emerald-500"
+                      placeholder="000000"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-300 mb-2">New Password</label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      minLength={8}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                      placeholder="Minimum 8 characters"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm text-slate-300 mb-2">Confirm New Password</label>
+                    <input
+                      type="password"
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      required
+                      minLength={8}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-white focus:border-emerald-500"
+                      placeholder="Re-enter new password"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full mt-2 inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-semibold disabled:opacity-60"
+                  >
+                    <span>{isSubmitting ? 'Please wait...' : 'Reset Password'}</span>
+                    {!isSubmitting && <ArrowRight className="w-4 h-4" />}
+                  </button>
+                </form>
+              )}
+
+              {(mode === 'login' || mode === 'register') && (
+                <p className="text-sm text-slate-400 mt-6">
+                  {mode === 'register' ? 'Already have an account?' : "Don't have an account?"}{' '}
+                  <Link
+                    to={mode === 'register' ? '/auth?mode=login' : '/auth?mode=register'}
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    {mode === 'register' ? 'Login here' : 'Create one now'}
+                  </Link>
+                </p>
+              )}
+
+              {(mode === 'forgot' || mode === 'reset') && (
+                <p className="text-sm text-slate-400 mt-6">
+                  Remembered your password?{' '}
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    className="text-emerald-400 hover:text-emerald-300"
+                  >
+                    Back to login
+                  </button>
+                </p>
+              )}
             </>
           ) : (
             <div className="space-y-6">

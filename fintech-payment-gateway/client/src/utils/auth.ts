@@ -17,6 +17,8 @@ export interface AuthUser {
   emailVerified?: boolean
   kycStatus?: 'pending' | 'verified' | 'rejected'
   walletAddress?: string
+  twoFactorEnabled?: boolean
+  accountDeletionScheduledFor?: string | null
 }
 
 const TOKEN_KEY = 'finpay_token'

@@ -233,3 +233,164 @@ export async function sendWelcomeEmail(email: string, firstName: string): Promis
 
   logger.warn(`Email provider not configured. Welcome email skipped for ${recipient}`)
 }
+
+export async function sendPasswordResetEmail(
+  email: string,
+  firstName: string,
+  resetCode: string,
+  resetLink: string
+): Promise<void> {
+  const recipient = email.trim().toLowerCase()
+  const greetingName = firstName || 'there'
+  const subject = 'Reset your FinPay password'
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; max-width: 620px; margin: 0 auto; background: #f8fafc; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0;">
+      <div style="padding: 24px 30px; background: #0f172a; color: #ffffff;">
+        <p style="margin: 0; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.85;">FinPay Account Security</p>
+        <h2 style="margin: 10px 0 0; font-size: 27px;">Password Reset Request</h2>
+      </div>
+      <div style="padding: 28px 30px;">
+        <p style="font-size: 15px; line-height: 1.6; margin: 0 0 14px;">Hi ${greetingName},</p>
+        <p style="font-size: 15px; line-height: 1.6; margin: 0 0 14px;">
+          We received a request to reset your FinPay password. Use the code below to complete the reset.
+        </p>
+        <div style="margin: 22px 0; padding: 16px; text-align: center; background: #e2e8f0; border-radius: 8px; letter-spacing: 5px; font-size: 28px; font-weight: 700;">
+          ${resetCode}
+        </div>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 14px; color: #334155;">
+          Or open this secure link: <a href="${resetLink}" style="color: #0ea5e9;">Reset Password</a>
+        </p>
+        <p style="font-size: 13px; color: #64748b; margin: 0;">
+          This code expires in ${config.passwordResetTtlMinutes} minutes. If you did not request this, ignore this email and keep your password unchanged.
+        </p>
+      </div>
+    </div>
+  `
+  const text = `Hi ${greetingName}, your FinPay password reset code is ${resetCode}. It expires in ${config.passwordResetTtlMinutes} minutes. Reset link: ${resetLink}`
+  const provider = await sendEmailWithConfiguredProvider(recipient, subject, text, html)
+
+  if (provider === 'smtp') {
+    logger.info(`Password reset email delivered via SMTP (${resolveSmtpFrom()}) to ${maskEmail(recipient)}`)
+    return
+  }
+
+  if (provider === 'resend') {
+    logger.info(`Password reset email delivered via Resend to ${maskEmail(recipient)}`)
+    return
+  }
+
+  logger.warn(`Email provider not configured. Password reset email skipped for ${recipient}`)
+}
+
+export async function sendAccountDeletionScheduledEmail(
+  email: string,
+  firstName: string,
+  scheduledFor: Date,
+  cancelLink?: string
+): Promise<void> {
+  const recipient = email.trim().toLowerCase()
+  const greetingName = firstName || 'there'
+  const subject = 'FinPay account deletion scheduled'
+  const scheduledTime = scheduledFor.toUTCString()
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; max-width: 620px; margin: 0 auto; background: #f8fafc; border-radius: 14px; overflow: hidden; border: 1px solid #e2e8f0;">
+      <div style="padding: 24px 30px; background: #7f1d1d; color: #ffffff;">
+        <p style="margin: 0; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.9;">FinPay Security Notice</p>
+        <h2 style="margin: 10px 0 0; font-size: 27px;">Account Deletion Scheduled</h2>
+      </div>
+      <div style="padding: 28px 30px;">
+        <p style="font-size: 15px; line-height: 1.6; margin: 0 0 14px;">Hi ${greetingName},</p>
+        <p style="font-size: 15px; line-height: 1.6; margin: 0 0 14px;">
+          Your FinPay account has been scheduled for permanent deletion.
+        </p>
+        <p style="font-size: 15px; line-height: 1.6; margin: 0 0 14px;">
+          Scheduled deletion time (UTC): <strong>${scheduledTime}</strong>
+        </p>
+        <p style="font-size: 14px; line-height: 1.6; margin: 0 0 14px; color: #334155;">
+          If this was not you, cancel immediately from your account settings.
+          ${cancelLink ? ` You can also use this secure link: <a href="${cancelLink}" style="color: #0ea5e9;">Cancel Deletion</a>` : ''}
+        </p>
+      </div>
+    </div>
+  `
+  const text = `Hi ${greetingName}, your FinPay account is scheduled for deletion at ${scheduledTime}. If this was not you, cancel deletion immediately.${cancelLink ? ` Cancel link: ${cancelLink}` : ''}`
+  const provider = await sendEmailWithConfiguredProvider(recipient, subject, text, html)
+
+  if (provider === 'smtp') {
+    logger.info(`Deletion schedule email delivered via SMTP (${resolveSmtpFrom()}) to ${maskEmail(recipient)}`)
+    return
+  }
+
+  if (provider === 'resend') {
+    logger.info(`Deletion schedule email delivered via Resend to ${maskEmail(recipient)}`)
+    return
+  }
+
+  logger.warn(`Email provider not configured. Deletion schedule email skipped for ${recipient}`)
+}
+
+interface SalesInquiryPayload {
+  fullName: string
+  workEmail: string
+  companyName: string
+  role: string
+  country: string
+  monthlyVolume: string
+  preferredContact: string
+  message: string
+}
+
+export async function sendSalesInquiryEmail(payload: SalesInquiryPayload): Promise<void> {
+  const destination = config.salesInbox || resolveSmtpFrom() || 'support@finpay.com.ng'
+  const subject = `New Contact Sales Lead: ${payload.companyName}`
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #0f172a; max-width: 680px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+      <div style="padding: 20px 24px; background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 60%, #06b6d4 100%); color: #fff;">
+        <p style="margin: 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85;">FinPay Sales Lead</p>
+        <h2 style="margin: 8px 0 0;">New Contact Sales Request</h2>
+      </div>
+      <div style="padding: 24px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+          <tr><td style="padding: 8px 0; color: #475569;">Name</td><td style="padding: 8px 0; font-weight: 600;">${payload.fullName}</td></tr>
+          <tr><td style="padding: 8px 0; color: #475569;">Work Email</td><td style="padding: 8px 0; font-weight: 600;">${payload.workEmail}</td></tr>
+          <tr><td style="padding: 8px 0; color: #475569;">Company</td><td style="padding: 8px 0; font-weight: 600;">${payload.companyName}</td></tr>
+          <tr><td style="padding: 8px 0; color: #475569;">Role</td><td style="padding: 8px 0; font-weight: 600;">${payload.role}</td></tr>
+          <tr><td style="padding: 8px 0; color: #475569;">Country</td><td style="padding: 8px 0; font-weight: 600;">${payload.country}</td></tr>
+          <tr><td style="padding: 8px 0; color: #475569;">Monthly Volume</td><td style="padding: 8px 0; font-weight: 600;">${payload.monthlyVolume}</td></tr>
+          <tr><td style="padding: 8px 0; color: #475569;">Preferred Contact</td><td style="padding: 8px 0; font-weight: 600;">${payload.preferredContact}</td></tr>
+        </table>
+        <div style="margin-top: 16px; padding: 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc;">
+          <p style="margin: 0 0 8px; font-size: 13px; color: #475569; text-transform: uppercase; letter-spacing: 0.08em;">Message</p>
+          <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #0f172a;">${payload.message}</p>
+        </div>
+      </div>
+    </div>
+  `
+
+  const text = [
+    'New Contact Sales Request',
+    `Name: ${payload.fullName}`,
+    `Work Email: ${payload.workEmail}`,
+    `Company: ${payload.companyName}`,
+    `Role: ${payload.role}`,
+    `Country: ${payload.country}`,
+    `Monthly Volume: ${payload.monthlyVolume}`,
+    `Preferred Contact: ${payload.preferredContact}`,
+    `Message: ${payload.message}`,
+  ].join('\n')
+
+  const provider = await sendEmailWithConfiguredProvider(destination, subject, text, html)
+
+  if (provider === 'smtp') {
+    logger.info(`Sales inquiry delivered via SMTP to ${maskEmail(destination)}`)
+    return
+  }
+
+  if (provider === 'resend') {
+    logger.info(`Sales inquiry delivered via Resend to ${maskEmail(destination)}`)
+    return
+  }
+
+  logger.warn(`Email provider not configured. Sales inquiry content logged for ${destination}: ${text}`)
+}

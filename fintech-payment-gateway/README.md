@@ -7,8 +7,9 @@ A production-ready, fintech-grade payment gateway system with cryptocurrency int
 - **3D Card Component**: Interactive credit card with CSS 3D transforms
 - **Crypto Payments**: MetaMask integration with extensible wallet hooks
 - **Live Price Ticker**: Real-time cryptocurrency prices
+- **Account Security**: Email OTP verification, password reset, session controls, and optional 2FA
 - **Multi-Chain Support**: Ethereum, Polygon, BSC, Avalanche
-- **Compliance Ready**: KYC/AML integration, transaction monitoring
+- **Compliance Ready**: Real KYC provider webhook/API integration support
 - **Security**: End-to-end encryption, PCI DSS compliant architecture
 - **Smart Contracts**: Audited Solidity contracts for escrow and payments
 
@@ -63,8 +64,8 @@ Detailed checklist: see `DEPLOYMENT.md`.
 
 ## Production Readiness Notes
 
-- Replace mock KYC flow in `server/src/routes/auth.ts` with a real provider.
-- Replace mock swap quote logic in `server/src/routes/crypto.ts` with a real DEX/aggregator integration.
+- Configure a live KYC provider (`KYC_API_URL`, `KYC_API_KEY`).
+- Configure swap provider credentials if required (`SWAP_PROVIDER_BASE_URL`, `SWAP_PROVIDER_API_KEY`).
 - Configure live Stripe keys and webhook secret before enabling card payments.
 
 ## Project Structure
@@ -95,11 +96,21 @@ fintech-payment-gateway/
 - `POST /api/auth/login` - User login
 - `POST /api/auth/verify-email` - Verify email OTP
 - `POST /api/auth/resend-verification` - Resend email OTP
+- `POST /api/auth/forgot-password` - Request password reset code
+- `POST /api/auth/reset-password` - Reset password with code
+- `GET /api/auth/sessions` - List active sessions
+- `POST /api/auth/sessions/revoke` - Revoke a session
+- `POST /api/auth/2fa/setup` - Initialize 2FA setup
+- `POST /api/auth/2fa/enable` - Enable 2FA
+- `POST /api/auth/2fa/disable` - Disable 2FA
 - `POST /api/auth/verify-kyc` - KYC verification
 
 ### User
 - `GET /api/users/me` - Get current user profile/preferences
 - `PATCH /api/users/me` - Update current user profile/preferences
+- `POST /api/users/delete-account` - Schedule account deletion
+- `POST /api/users/cancel-delete-account` - Cancel scheduled deletion
+- `POST /api/users/contact-sales` - Submit sales lead to email + CRM routing (if configured)
 
 ### Payments
 - `POST /api/payments/fiat` - Process fiat payment

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import {
+  ArrowRight,
   TrendingUp,
   DollarSign,
   CreditCard,
@@ -8,6 +10,7 @@ import {
   CheckCircle2,
   Download,
   Loader2,
+  Shield,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -23,6 +26,7 @@ import {
 } from 'recharts'
 import toast from 'react-hot-toast'
 import { apiRequest } from '../utils/api'
+import { visualAssets } from '../content/visualAssets'
 
 type TimeRange = '24h' | '7d' | '30d' | '90d'
 
@@ -247,6 +251,41 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="mb-8 rounded-3xl border border-slate-700/80 bg-slate-900/60 overflow-hidden">
+        <div className="grid lg:grid-cols-[1.2fr,0.8fr]">
+          <div className="p-6 sm:p-8">
+            <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Operations Snapshot</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Monitor performance and act on failures faster</h2>
+            <p className="mt-3 text-sm text-slate-300 max-w-2xl">
+              This dashboard now aligns with the checkout UX: explicit states, strong trust cues,
+              and direct routes to retry or inspect payment events.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link
+                to="/transactions"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2.5 text-sm font-semibold text-slate-950"
+              >
+                <span>Open Transactions</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <Link
+                to="/payment"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-600 bg-slate-800/65 px-4 py-2.5 text-sm text-slate-200"
+              >
+                <Shield className="w-4 h-4 text-cyan-300" />
+                <span>Test Checkout</span>
+              </Link>
+            </div>
+          </div>
+          <img
+            src={visualAssets.supportTeam.src}
+            alt={visualAssets.supportTeam.alt}
+            className="h-full min-h-[220px] w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="glass rounded-2xl border border-slate-700 p-10 flex items-center justify-center space-x-3 text-slate-300">
           <Loader2 className="w-5 h-5 animate-spin" />
@@ -325,8 +364,9 @@ export default function Dashboard() {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-400">
-                    No chart data available for this period.
+                  <div className="h-full flex flex-col items-center justify-center text-sm text-slate-400 gap-2">
+                    <span>No chart data available for this period.</span>
+                    <Link to="/payment" className="text-cyan-200 hover:text-cyan-100 transition-colors">Run a test payment to populate analytics.</Link>
                   </div>
                 )}
               </div>
@@ -366,8 +406,9 @@ export default function Dashboard() {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-slate-400">
-                    No payment method data yet.
+                  <div className="h-full flex flex-col items-center justify-center text-sm text-slate-400 gap-2">
+                    <span>No payment method data yet.</span>
+                    <span className="text-xs text-slate-500">Method split appears once transactions are recorded.</span>
                   </div>
                 )}
               </div>
@@ -456,7 +497,10 @@ export default function Dashboard() {
                   ) : (
                     <tr>
                       <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                        No transactions found for this range.
+                        <div className="space-y-2">
+                          <p>No transactions found for this range.</p>
+                          <Link to="/payment" className="text-cyan-200 hover:text-cyan-100 transition-colors">Start a payment test</Link>
+                        </div>
                       </td>
                     </tr>
                   )}

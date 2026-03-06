@@ -4,6 +4,7 @@ import { query, validationResult } from 'express-validator'
 import { cacheGet, cacheSet } from '../utils/redis'
 import { asyncHandler } from '../middleware/errorHandler'
 import { logger } from '../utils/logger'
+import { getSwapQuote } from '../services/swapProvider'
 
 const router = express.Router()
 
@@ -134,43 +135,40 @@ router.get('/history/:symbol', [
 router.get('/quote', [
   query('from').notEmpty(),
   query('to').notEmpty(),
-  query('amount').isFloat({ min: 0 })
+  query('amount').isFloat({ min: 0 }),
+  query('slippage').optional().isFloat({ min: 0, max: 50 }),
 ], asyncHandler(async (req: Request, res: Response) => {
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() })
   }
 
-  const { from, to, amount } = req.query as { from: string; to: string; amount: string }
-
-  // Mock exchange rates
-  const rates: Record<string, number> = {
-    'ETH-USDC': 3500,
-    'USDC-ETH': 1/3500,
-    'BTC-USDC': 67000,
-    'USDC-BTC': 1/67000,
-    'ETH-BTC': 0.052,
-    'BTC-ETH': 19.2
+  const { from, to, amount, slippage } = req.query as {
+    from: string
+    to: string
+    amount: string
+    slippage?: string
   }
 
-  const rate = rates[`${from}-${to}`] || 1
-  const receivedAmount = parseFloat(amount) * rate
+  try {
+    const quote = await getSwapQuote({
+      fromSymbol: from,
+      toSymbol: to,
+      amount,
+      slippagePercentage: slippage ? Number(slippage) : undefined,
+    })
 
-  // Mock slippage and fees
-  const slippage = 0.5
-  const fee = parseFloat(amount) * 0.003
+    return res.json(quote)
+  } catch (error: any) {
+    const message = error?.message || 'Unable to fetch swap quote'
+    logger.error(`Swap quote failed for ${from}-${to} (${amount}): ${message}`)
 
-  res.json({
-    from,
-    to,
-    amount: parseFloat(amount),
-    receivedAmount: receivedAmount * (1 - slippage/100),
-    exchangeRate: rate,
-    slippage: `${slippage}%`,
-    fee: fee,
-    feeCurrency: from,
-    validFor: 300 // 5 minutes
-  })
+    if (message.toLowerCase().includes('unsupported token')) {
+      return res.status(400).json({ error: message })
+    }
+
+    return res.status(502).json({ error: 'Swap quote provider unavailable. Please try again.' })
+  }
 }))
 
 // Get supported tokens

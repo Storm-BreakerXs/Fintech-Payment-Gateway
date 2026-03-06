@@ -2,13 +2,22 @@ import express, { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
+import speakeasy from 'speakeasy'
+import QRCode from 'qrcode'
 import { body, validationResult } from 'express-validator'
 import { config } from '../config/env'
-import { User } from '../utils/database'
+import { Session, User } from '../utils/database'
 import { strictRateLimiter } from '../middleware/rateLimiter'
 import { asyncHandler } from '../middleware/errorHandler'
 import { logger } from '../utils/logger'
-import { sendEmailVerificationOtp, sendWelcomeEmail } from '../utils/email'
+import {
+  sendEmailVerificationOtp,
+  sendPasswordResetEmail,
+  sendWelcomeEmail,
+} from '../utils/email'
+import { authenticateToken } from '../middleware/auth'
+import { decrypt, encrypt, hashData } from '../utils/encryption'
+import { verifyKycWithProvider } from '../services/kycProvider'
 
 const router = express.Router()
 
@@ -29,9 +38,9 @@ function getOtpCooldownRemainingSeconds(lastSentAt: Date | null | undefined): nu
   return Math.max(config.otpResendCooldownSeconds - elapsedSeconds, 0)
 }
 
-function createToken(userId: string): string {
+function createToken(userId: string, sessionId?: string): string {
   return jwt.sign(
-    { userId },
+    { userId, ...(sessionId ? { sid: sessionId } : {}) },
     config.jwtSecret,
     { expiresIn: '7d' }
   )
@@ -56,8 +65,73 @@ function formatUser(user: any) {
     },
     emailVerified: user.emailVerified,
     kycStatus: user.kycStatus,
-    walletAddress: user.walletAddress
+    walletAddress: user.walletAddress,
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
+    accountDeletionScheduledFor: user.accountDeletionScheduledFor,
   }
+}
+
+function getPrimaryClientUrl(): string {
+  return config.clientUrl.split(',')[0]?.trim() || 'http://localhost:5173'
+}
+
+function normalizeRecoveryCode(value: string): string {
+  return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+}
+
+function createRecoveryCode(): string {
+  return `${crypto.randomBytes(3).toString('hex')}-${crypto.randomBytes(3).toString('hex')}`.toUpperCase()
+}
+
+async function createSessionToken(req: Request, userId: string): Promise<string> {
+  const sessionId = crypto.randomUUID()
+  await Session.create({
+    userId,
+    tokenId: sessionId,
+    userAgent: req.get('user-agent') || '',
+    ipAddress: req.ip || '',
+  })
+
+  return createToken(userId, sessionId)
+}
+
+async function verifyTwoFactor(user: any, twoFactorCode?: string, recoveryCode?: string): Promise<{ ok: boolean; recoveryCodeRotated?: string }> {
+  if (!user.twoFactorEnabled) {
+    return { ok: true }
+  }
+
+  const secretEncrypted = user.twoFactorSecretEncrypted
+  if (!secretEncrypted) {
+    return { ok: false }
+  }
+
+  const secret = decrypt(secretEncrypted)
+  if (!secret) {
+    return { ok: false }
+  }
+
+  const sanitizedCode = String(twoFactorCode || '').trim().replace(/\s+/g, '')
+  if (sanitizedCode) {
+    const totpValid = speakeasy.totp.verify({
+      secret,
+      encoding: 'base32',
+      token: sanitizedCode,
+      window: 1,
+    })
+    if (totpValid) {
+      return { ok: true }
+    }
+  }
+
+  const normalizedRecovery = normalizeRecoveryCode(String(recoveryCode || ''))
+  if (normalizedRecovery && user.twoFactorRecoveryCodeHash === hashData(normalizedRecovery)) {
+    const nextRecoveryCode = createRecoveryCode()
+    user.twoFactorRecoveryCodeHash = hashData(nextRecoveryCode)
+    await user.save()
+    return { ok: true, recoveryCodeRotated: nextRecoveryCode }
+  }
+
+  return { ok: false }
 }
 
 // Register
@@ -142,14 +216,16 @@ router.post('/register', strictRateLimiter, [
 // Login
 router.post('/login', strictRateLimiter, [
   body('email').isEmail().normalizeEmail(),
-  body('password').notEmpty()
+  body('password').notEmpty(),
+  body('twoFactorCode').optional().isLength({ min: 6, max: 6 }),
+  body('recoveryCode').optional().isString(),
 ], asyncHandler(async (req: Request, res: Response) => {
   const errors = validationResult(req)
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() })
   }
 
-  const { email, password } = req.body
+  const { email, password, twoFactorCode, recoveryCode } = req.body
   const normalizedEmail = String(email).toLowerCase().trim()
 
   const user = await User.findOne({ email: normalizedEmail })
@@ -157,7 +233,6 @@ router.post('/login', strictRateLimiter, [
     return res.status(401).json({ error: 'Invalid credentials' })
   }
 
-  // Check password
   const isValidPassword = await bcrypt.compare(password, user.password)
   if (!isValidPassword) {
     return res.status(401).json({ error: 'Invalid credentials' })
@@ -173,13 +248,24 @@ router.post('/login', strictRateLimiter, [
     })
   }
 
-  const token = createToken(String(user._id))
+  const twoFactorResult = await verifyTwoFactor(user, twoFactorCode, recoveryCode)
+  if (!twoFactorResult.ok) {
+    return res.status(401).json({
+      error: user.twoFactorEnabled
+        ? 'Two-factor authentication required or invalid code.'
+        : 'Invalid credentials',
+      code: 'TWO_FACTOR_REQUIRED',
+    })
+  }
+
+  const token = await createSessionToken(req, String(user._id))
 
   logger.info(`User logged in: ${normalizedEmail}`)
 
   res.json({
     token,
-    user: formatUser(user)
+    user: formatUser(user),
+    ...(twoFactorResult.recoveryCodeRotated ? { recoveryCodeRotated: twoFactorResult.recoveryCodeRotated } : {}),
   })
 }))
 
@@ -203,7 +289,7 @@ router.post('/verify-email', strictRateLimiter, [
   }
 
   if (user.emailVerified) {
-    const token = createToken(String(user._id))
+    const token = await createSessionToken(req, String(user._id))
     return res.json({
       message: 'Email already verified.',
       token,
@@ -247,7 +333,7 @@ router.post('/verify-email', strictRateLimiter, [
     logger.error(`Failed to send welcome email for ${user.email}: ${error.message}`)
   }
 
-  const token = createToken(String(user._id))
+  const token = await createSessionToken(req, String(user._id))
   logger.info(`Email verified: ${user.email}`)
 
   res.json({
@@ -311,27 +397,265 @@ router.post('/resend-verification', strictRateLimiter, [
   })
 }))
 
-// Verify KYC (mock implementation)
-router.post('/verify-kyc', asyncHandler(async (req: Request, res: Response) => {
-  const { userId, documentType, documentNumber } = req.body
-
-  // In production, integrate with KYC provider like Onfido, Jumio, etc.
-  // This is a mock implementation
-
-  const user = await User.findById(userId)
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' })
+// Request password reset
+router.post('/forgot-password', strictRateLimiter, [
+  body('email').isEmail().normalizeEmail(),
+], asyncHandler(async (req: Request, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
   }
 
-  // Simulate KYC verification
-  user.kycStatus = 'verified'
-  await user.save()
+  const normalizedEmail = String(req.body.email).toLowerCase().trim()
+  const user = await User.findOne({ email: normalizedEmail })
 
-  logger.info(`KYC verified for user: ${user.email}`)
+  if (user) {
+    const resetCode = createOtpCode()
+    user.passwordResetTokenHash = hashOtp(resetCode)
+    user.passwordResetExpiresAt = new Date(Date.now() + config.passwordResetTtlMinutes * 60 * 1000)
+    await user.save()
+
+    const resetLink = `${getPrimaryClientUrl()}/auth?mode=reset&email=${encodeURIComponent(user.email)}&code=${encodeURIComponent(resetCode)}`
+
+    try {
+      await sendPasswordResetEmail(user.email, user.firstName, resetCode, resetLink)
+    } catch (error: any) {
+      logger.error(`Failed to send password reset email for ${user.email}: ${error.message}`)
+    }
+  }
 
   res.json({
-    message: 'KYC verification completed',
-    kycStatus: user.kycStatus
+    message: 'If that email exists, a password reset code has been sent.',
+  })
+}))
+
+// Reset password
+router.post('/reset-password', strictRateLimiter, [
+  body('email').isEmail().normalizeEmail(),
+  body('code').isLength({ min: 6, max: 6 }).isNumeric(),
+  body('newPassword').isLength({ min: 8 }),
+], asyncHandler(async (req: Request, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  }
+
+  const normalizedEmail = String(req.body.email).toLowerCase().trim()
+  const code = String(req.body.code).trim()
+  const newPassword = String(req.body.newPassword)
+
+  const user = await User.findOne({ email: normalizedEmail })
+  if (!user || !user.passwordResetTokenHash || !user.passwordResetExpiresAt) {
+    return res.status(400).json({ error: 'Invalid or expired reset code.' })
+  }
+
+  if (new Date(user.passwordResetExpiresAt).getTime() < Date.now()) {
+    return res.status(400).json({ error: 'Reset code has expired.' })
+  }
+
+  if (user.passwordResetTokenHash !== hashOtp(code)) {
+    return res.status(400).json({ error: 'Invalid reset code.' })
+  }
+
+  user.password = await bcrypt.hash(newPassword, 12)
+  user.passwordResetTokenHash = null
+  user.passwordResetExpiresAt = null
+  await user.save()
+
+  await Session.updateMany({ userId: user._id, revokedAt: null }, { $set: { revokedAt: new Date() } })
+
+  res.json({ message: 'Password reset successful. Please log in again.' })
+}))
+
+// Logout current session
+router.post('/logout', authenticateToken, asyncHandler(async (req: any, res: Response) => {
+  if (req.session) {
+    req.session.revokedAt = new Date()
+    await req.session.save()
+  }
+
+  res.json({ message: 'Logged out successfully.' })
+}))
+
+// List sessions
+router.get('/sessions', authenticateToken, asyncHandler(async (req: any, res: Response) => {
+  const sessions = await Session.find({ userId: req.user._id })
+    .sort({ createdAt: -1 })
+    .limit(20)
+
+  res.json({
+    sessions: sessions.map((session) => ({
+      id: session.tokenId,
+      userAgent: session.userAgent,
+      ipAddress: session.ipAddress,
+      revokedAt: session.revokedAt,
+      lastSeenAt: session.lastSeenAt,
+      createdAt: session.createdAt,
+      isCurrent: req.session?.tokenId === session.tokenId,
+    })),
+  })
+}))
+
+// Revoke session
+router.post('/sessions/revoke', authenticateToken, [
+  body('sessionId').trim().notEmpty(),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  }
+
+  const sessionId = String(req.body.sessionId).trim()
+  const session = await Session.findOne({ tokenId: sessionId, userId: req.user._id })
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found.' })
+  }
+
+  session.revokedAt = new Date()
+  await session.save()
+
+  res.json({ message: 'Session revoked successfully.' })
+}))
+
+// Setup 2FA
+router.post('/2fa/setup', authenticateToken, asyncHandler(async (req: any, res: Response) => {
+  if (req.user.twoFactorEnabled) {
+    return res.status(400).json({ error: 'Two-factor authentication is already enabled.' })
+  }
+
+  const secret = speakeasy.generateSecret({
+    name: `FinPay (${req.user.email})`,
+    issuer: 'FinPay',
+    length: 32,
+  })
+
+  req.user.twoFactorTempSecretEncrypted = encrypt(secret.base32)
+  await req.user.save()
+
+  const qrCodeDataUrl = secret.otpauth_url
+    ? await QRCode.toDataURL(secret.otpauth_url)
+    : ''
+
+  res.json({
+    message: 'Scan the QR code and submit a 6-digit code to enable 2FA.',
+    secret: secret.base32,
+    otpauthUrl: secret.otpauth_url,
+    qrCodeDataUrl,
+  })
+}))
+
+// Enable 2FA
+router.post('/2fa/enable', authenticateToken, [
+  body('code').isLength({ min: 6, max: 6 }),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  }
+
+  const encryptedSecret = req.user.twoFactorTempSecretEncrypted
+  if (!encryptedSecret) {
+    return res.status(400).json({ error: '2FA setup has not been initialized.' })
+  }
+
+  const secret = decrypt(encryptedSecret)
+  const isValid = speakeasy.totp.verify({
+    secret,
+    encoding: 'base32',
+    token: String(req.body.code).trim(),
+    window: 1,
+  })
+
+  if (!isValid) {
+    return res.status(400).json({ error: 'Invalid 2FA code.' })
+  }
+
+  const recoveryCode = createRecoveryCode()
+  req.user.twoFactorEnabled = true
+  req.user.twoFactorSecretEncrypted = encrypt(secret)
+  req.user.twoFactorTempSecretEncrypted = null
+  req.user.twoFactorRecoveryCodeHash = hashData(normalizeRecoveryCode(recoveryCode))
+  await req.user.save()
+
+  res.json({
+    message: 'Two-factor authentication enabled successfully.',
+    recoveryCode,
+  })
+}))
+
+// Disable 2FA
+router.post('/2fa/disable', authenticateToken, [
+  body('password').isLength({ min: 8 }),
+  body('code').optional().isString(),
+  body('recoveryCode').optional().isString(),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  }
+
+  if (!req.user.twoFactorEnabled) {
+    return res.status(400).json({ error: 'Two-factor authentication is not enabled.' })
+  }
+
+  const isValidPassword = await bcrypt.compare(String(req.body.password), req.user.password)
+  if (!isValidPassword) {
+    return res.status(401).json({ error: 'Invalid password.' })
+  }
+
+  const twoFactorResult = await verifyTwoFactor(req.user, req.body.code, req.body.recoveryCode)
+  if (!twoFactorResult.ok) {
+    return res.status(400).json({ error: 'Invalid 2FA code.' })
+  }
+
+  req.user.twoFactorEnabled = false
+  req.user.twoFactorSecretEncrypted = null
+  req.user.twoFactorTempSecretEncrypted = null
+  req.user.twoFactorRecoveryCodeHash = null
+  await req.user.save()
+
+  await Session.updateMany({ userId: req.user._id, revokedAt: null }, { $set: { revokedAt: new Date() } })
+
+  res.json({ message: 'Two-factor authentication disabled. Please log in again.' })
+}))
+
+// Verify KYC via configured provider
+router.post('/verify-kyc', authenticateToken, [
+  body('documentType').trim().notEmpty(),
+  body('documentNumber').trim().notEmpty(),
+  body('country').optional().trim().isLength({ min: 2, max: 2 }),
+], asyncHandler(async (req: any, res: Response) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() })
+  }
+
+  const { documentType, documentNumber, country } = req.body as {
+    documentType: string
+    documentNumber: string
+    country?: string
+  }
+
+  const result = await verifyKycWithProvider({
+    userId: String(req.user._id),
+    email: req.user.email,
+    firstName: req.user.firstName,
+    lastName: req.user.lastName,
+    documentType,
+    documentNumber,
+    country,
+  })
+
+  req.user.kycStatus = result.status
+  req.user.kycProviderReference = result.providerReference || ''
+  await req.user.save()
+
+  logger.info(`KYC processed for user: ${req.user.email}, status=${result.status}`)
+
+  res.json({
+    message: 'KYC verification processed.',
+    kycStatus: req.user.kycStatus,
+    providerReference: req.user.kycProviderReference,
   })
 }))
 

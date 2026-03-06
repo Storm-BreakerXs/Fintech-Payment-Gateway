@@ -107,7 +107,7 @@ export const sitePages: Record<string, SitePageContent> = {
       'Teams can work with dedicated specialists to accelerate production readiness and ongoing optimization.',
     ],
     ctaLabel: 'Contact Sales',
-    ctaHref: '/about',
+    ctaHref: '/contact-sales',
   },
   about: {
     slug: 'about',
@@ -178,8 +178,8 @@ export const sitePages: Record<string, SitePageContent> = {
       'This page provides a single source of truth for recent announcements and company background.',
       'For media requests, include publication details and timelines so we can route your request quickly.',
     ],
-    ctaLabel: 'About FinPay',
-    ctaHref: '/about',
+    ctaLabel: 'Contact Sales',
+    ctaHref: '/contact-sales',
   },
   documentation: {
     slug: 'documentation',

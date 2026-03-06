@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { config } from '../config/env'
-import { User } from '../utils/database'
+import { Session, User } from '../utils/database'
 
 interface AuthRequest extends Request {
   user?: any
+  session?: any
 }
 
 export async function authenticateToken(
@@ -25,6 +26,16 @@ export async function authenticateToken(
 
     if (!user || !user.isActive) {
       return res.status(401).json({ error: 'User not found or inactive' })
+    }
+
+    if (decoded.sid) {
+      const session = await Session.findOne({ tokenId: decoded.sid, userId: user._id })
+      if (!session || session.revokedAt) {
+        return res.status(401).json({ error: 'Session has been revoked. Please sign in again.' })
+      }
+      session.lastSeenAt = new Date()
+      await session.save()
+      req.session = session
     }
 
     req.user = user

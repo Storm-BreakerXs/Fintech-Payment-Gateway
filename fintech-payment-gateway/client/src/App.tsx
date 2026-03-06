@@ -1,15 +1,21 @@
+import { Suspense, lazy, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
 import { useWeb3Store } from './hooks/useWeb3'
 import Layout from './components/Layout'
-import Home from './pages/Home'
-import Payment from './pages/Payment'
-import Dashboard from './pages/Dashboard'
-import Transactions from './pages/Transactions'
-import Settings from './pages/Settings'
-import Auth from './pages/Auth'
-import SitePage from './pages/SitePage'
 import ProtectedRoute from './components/ProtectedRoute'
+
+const Home = lazy(() => import('./pages/Home'))
+const Payment = lazy(() => import('./pages/Payment'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Transactions = lazy(() => import('./pages/Transactions'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Auth = lazy(() => import('./pages/Auth'))
+const SitePage = lazy(() => import('./pages/SitePage'))
+const ProductsPage = lazy(() => import('./pages/ProductsPage'))
+const SolutionsPage = lazy(() => import('./pages/SolutionsPage'))
+const CompanyPage = lazy(() => import('./pages/CompanyPage'))
+const DevelopersPage = lazy(() => import('./pages/DevelopersPage'))
+const ContactSales = lazy(() => import('./pages/ContactSales'))
 
 function App() {
   const { initialize } = useWeb3Store()
@@ -20,38 +26,57 @@ function App() {
 
   return (
     <Layout>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/login" element={<Navigate to="/auth?mode=login" replace />} />
-        <Route path="/register" element={<Navigate to="/auth?mode=register" replace />} />
-        <Route path="/payment" element={<Payment />} />
-        <Route
-          path="/dashboard"
-          element={(
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/transactions"
-          element={(
-            <ProtectedRoute>
-              <Transactions />
-            </ProtectedRoute>
-          )}
-        />
-        <Route
-          path="/settings"
-          element={(
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          )}
-        />
-        <Route path="/:slug" element={<SitePage />} />
-      </Routes>
+      <Suspense
+        fallback={(
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+            <div className="glass rounded-2xl border border-slate-700 p-8 text-slate-300">
+              Loading...
+            </div>
+          </div>
+        )}
+      >
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/login" element={<Navigate to="/auth?mode=login" replace />} />
+          <Route path="/register" element={<Navigate to="/auth?mode=register" replace />} />
+          <Route path="/products" element={<ProductsPage />} />
+          <Route path="/features" element={<ProductsPage />} />
+          <Route path="/solutions" element={<SolutionsPage />} />
+          <Route path="/enterprise" element={<SolutionsPage />} />
+          <Route path="/company" element={<CompanyPage />} />
+          <Route path="/about" element={<CompanyPage />} />
+          <Route path="/developers" element={<DevelopersPage />} />
+          <Route path="/documentation" element={<DevelopersPage />} />
+          <Route path="/contact-sales" element={<ContactSales />} />
+          <Route path="/payment" element={<Payment />} />
+          <Route
+            path="/dashboard"
+            element={(
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/transactions"
+            element={(
+              <ProtectedRoute>
+                <Transactions />
+              </ProtectedRoute>
+            )}
+          />
+          <Route
+            path="/settings"
+            element={(
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            )}
+          />
+          <Route path="/*" element={<SitePage />} />
+        </Routes>
+      </Suspense>
     </Layout>
   )
 }

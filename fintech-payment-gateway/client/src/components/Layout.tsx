@@ -1,7 +1,8 @@
-import { ReactNode } from 'react'
+import { ReactNode, Suspense, lazy } from 'react'
 import Navbar from './Navbar'
-import PriceTicker from './PriceTicker'
 import Footer from './Footer'
+
+const PriceTicker = lazy(() => import('./PriceTicker'))
 
 interface LayoutProps {
   children: ReactNode
@@ -10,7 +11,9 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col">
-      <PriceTicker />
+      <Suspense fallback={<div className="h-[41px] border-b border-slate-800 bg-slate-900/70" />}>
+        <PriceTicker />
+      </Suspense>
       <Navbar />
       <main className="flex-1">
         {children}

@@ -25,12 +25,26 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    modulePreload: false,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom'],
-          web3: ['ethers', '@web3modal/ethers'],
-          charts: ['recharts'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+
+          if (id.includes('/ethers/')) {
+            return 'vendor-ethers'
+          }
+
+          if (
+            id.includes('/@stripe/') ||
+            id.includes('/qrcode.react/')
+          ) {
+            return 'vendor-payments'
+          }
+
+          if (id.includes('/recharts/') || id.includes('/d3-')) {
+            return 'vendor-charts'
+          }
         },
       },
     },

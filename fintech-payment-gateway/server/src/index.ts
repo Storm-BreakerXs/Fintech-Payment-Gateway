@@ -8,6 +8,7 @@ import { config } from './config/env'
 import { connectDatabase } from './utils/database'
 import { connectRedis } from './utils/redis'
 import { logger } from './utils/logger'
+import { purgeDueAccountDeletions } from './utils/accountCleanup'
 import { errorHandler } from './middleware/errorHandler'
 import { rateLimiter } from './middleware/rateLimiter'
 
@@ -20,6 +21,7 @@ import userRoutes from './routes/users'
 const app = express()
 const server = createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws' })
+let accountCleanupTimer: NodeJS.Timeout | null = null
 const allowedOrigins = config.clientUrl
   .split(',')
   .map((origin) => origin.trim())
@@ -37,6 +39,7 @@ function isDynamicAllowedOrigin(origin: string): boolean {
   return /^http:\/\/localhost:\d+$/i.test(origin)
     || /^http:\/\/127\.0\.0\.1:\d+$/i.test(origin)
     || /^https:\/\/(?:[a-z0-9-]+\.)?finpay\.com\.ng$/i.test(origin)
+    || /^https:\/\/(?:[a-z0-9-]+\.)?finpay\.sbs$/i.test(origin)
 }
 
 // Security middleware
@@ -132,6 +135,22 @@ async function startServer() {
     // Connect to Redis
     await connectRedis()
 
+    // Initial account cleanup run and recurring sweep.
+    const deleted = await purgeDueAccountDeletions()
+    if (deleted > 0) {
+      logger.warn(`Startup cleanup removed ${deleted} scheduled account(s).`)
+    }
+    accountCleanupTimer = setInterval(async () => {
+      try {
+        const removed = await purgeDueAccountDeletions()
+        if (removed > 0) {
+          logger.warn(`Scheduled cleanup removed ${removed} account(s).`)
+        }
+      } catch (error) {
+        logger.error('Scheduled account cleanup failed:', error)
+      }
+    }, 5 * 60 * 1000)
+
     // Start HTTP server
     server.listen(config.port, () => {
       logger.info(`Server running on port ${config.port}`)
@@ -148,6 +167,10 @@ startServer()
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully')
+  if (accountCleanupTimer) {
+    clearInterval(accountCleanupTimer)
+    accountCleanupTimer = null
+  }
   server.close(() => {
     logger.info('Server closed')
     process.exit(0)

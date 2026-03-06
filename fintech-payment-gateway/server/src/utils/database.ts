@@ -31,6 +31,15 @@ const userSchema = new mongoose.Schema({
   emailVerificationOtpExpiresAt: { type: Date, default: null },
   emailVerificationOtpLastSentAt: { type: Date, default: null },
   emailVerificationAttempts: { type: Number, default: 0 },
+  passwordResetTokenHash: { type: String, default: null },
+  passwordResetExpiresAt: { type: Date, default: null },
+  twoFactorEnabled: { type: Boolean, default: false },
+  twoFactorSecretEncrypted: { type: String, default: null },
+  twoFactorTempSecretEncrypted: { type: String, default: null },
+  twoFactorRecoveryCodeHash: { type: String, default: null },
+  accountDeletionRequestedAt: { type: Date, default: null },
+  accountDeletionScheduledFor: { type: Date, default: null },
+  accountDeletionTokenHash: { type: String, default: null },
   notificationSettings: {
     paymentConfirmations: { type: Boolean, default: true },
     failedTransactions: { type: Boolean, default: true },
@@ -43,6 +52,7 @@ const userSchema = new mongoose.Schema({
     enum: ['pending', 'verified', 'rejected'], 
     default: 'pending' 
   },
+  kycProviderReference: { type: String, default: '' },
   walletAddress: { type: String },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now },
@@ -96,6 +106,17 @@ const paymentMethodSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 })
 
+const sessionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  tokenId: { type: String, required: true, unique: true, index: true },
+  userAgent: { type: String, default: '' },
+  ipAddress: { type: String, default: '' },
+  revokedAt: { type: Date, default: null },
+  lastSeenAt: { type: Date, default: Date.now },
+  createdAt: { type: Date, default: Date.now },
+})
+
 export const User = mongoose.model('User', userSchema)
 export const Transaction = mongoose.model('Transaction', transactionSchema)
 export const PaymentMethod = mongoose.model('PaymentMethod', paymentMethodSchema)
+export const Session = mongoose.model('Session', sessionSchema)
